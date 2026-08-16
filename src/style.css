@@ -395,6 +395,123 @@ button:focus-visible, input:focus-visible {
   text-align: right;
 }
 
+/* --- Scena stanza (sfondo personalizzabile dal GM) --- */
+.room-scene {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  transition: background 0.4s ease;
+}
+
+.gm-badge {
+  display: inline-block;
+  margin-left: 8px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: rgba(201, 162, 39, 0.18);
+  color: var(--gold);
+  font-size: 0.65rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  font-weight: 700;
+  vertical-align: middle;
+}
+
+.room-header-actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+/* --- Pannello Game Master --- */
+.gm-panel {
+  background: rgba(15, 29, 21, 0.55);
+  border: 1px solid rgba(201, 162, 39, 0.3);
+  border-radius: 16px;
+  padding: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+
+.gm-panel h3 {
+  font-size: 1rem;
+  color: var(--gold);
+  margin: 0;
+}
+
+.gm-section {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.gm-section label {
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--ivory-dim);
+}
+
+.gm-swatches {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.gm-swatch {
+  width: 34px;
+  height: 34px;
+  border-radius: 10px;
+  border: 2px solid rgba(232, 220, 196, 0.3);
+  cursor: pointer;
+}
+.gm-swatch:hover {
+  border-color: var(--gold);
+}
+
+.gm-inline-form {
+  display: flex;
+  gap: 8px;
+}
+.gm-inline-form .expression-input {
+  text-align: left;
+}
+
+.gm-remove-btn {
+  align-self: flex-start;
+  font-size: 0.75rem;
+  padding: 6px 12px;
+}
+
+.gm-hint {
+  color: var(--ivory-dim);
+  font-size: 0.75rem;
+  margin: 0;
+  font-style: italic;
+}
+
+/* --- Player musicale condiviso --- */
+.media-player {
+  background: rgba(15, 29, 21, 0.5);
+  border: 1px solid rgba(232, 220, 196, 0.15);
+  border-radius: 14px;
+  padding: 12px;
+}
+
+.media-player-label {
+  margin: 0 0 8px;
+  font-size: 0.75rem;
+  color: var(--ivory-dim);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.media-player iframe {
+  border-radius: 8px;
+  display: block;
+}
+
 /* --- Responsive --- */
 @media (max-width: 420px) {
   .landing-hero h1 { font-size: 2.1rem; }
