@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react'
 import { supabase } from './supabaseClient'
 import { lanciaEspressione, formattaNotazione } from './diceNotation'
+import { Dice3DTray } from './Dice3D'
 
 // --- Utility: codice stanza leggibile, tipo "CERVO-4821" ---
 const ANIMALI = [
@@ -17,93 +18,32 @@ function getPath() {
   return window.location.pathname
 }
 
+// --- Colore deterministico per giocatore, derivato dal nickname ---
+function colorePerNickname(nome) {
+  let hash = 0
+  for (let i = 0; i < nome.length; i++) {
+    hash = nome.charCodeAt(i) + ((hash << 5) - hash)
+  }
+  const hue = Math.abs(hash) % 360
+  return `hsl(${hue}, 62%, 58%)`
+}
+
 // --- Dadi rapidi da inserire nell'espressione con un tap ---
 const TIPI_DADO = [4, 6, 8, 10, 12, 20, 100]
 
-// --- Faccia di dado con pallini reali (solo per d6, gli altri mostrano il numero) ---
-const PIP_LAYOUTS = {
-  1: [[50, 50]],
-  2: [[25, 25], [75, 75]],
+// --- Faccia 2D statica (solo decorativa, per le schermate di landing/nickname) ---
+const PIP_LAYOUTS_D6 = {
   3: [[25, 25], [50, 50], [75, 75]],
-  4: [[25, 25], [75, 25], [25, 75], [75, 75]],
-  5: [[25, 25], [75, 25], [50, 50], [25, 75], [75, 75]],
-  6: [[25, 25], [75, 25], [25, 50], [75, 50], [25, 75], [75, 75]],
 }
-
-function DiceFace({ value, sides, size = 56 }) {
-  if (sides === 6) {
-    const pips = PIP_LAYOUTS[value] || []
-    return (
-      <svg width={size} height={size} viewBox="0 0 100 100" className="dice-face">
-        <rect x="4" y="4" width="92" height="92" rx="16" className="dice-face-bg" />
-        {pips.map(([cx, cy], i) => (
-          <circle key={i} cx={cx} cy={cy} r="9" className="dice-pip" />
-        ))}
-      </svg>
-    )
-  }
-
-  const latiPoligono = sides === 4 ? 3 : sides === 8 ? 8 : sides === 10 ? 5 : sides === 12 ? 10 : sides === 20 ? 6 : 8
-  const points = poligonoPoints(latiPoligono)
+function DiceFace2D({ size = 72 }) {
+  const pips = PIP_LAYOUTS_D6[3]
   return (
-    <svg width={size} height={size} viewBox="0 0 100 100" className="dice-face">
-      <polygon points={points} className="dice-face-bg" />
-      <text x="50" y="58" textAnchor="middle" className="dice-face-number">{value}</text>
-    </svg>
-  )
-}
-
-function poligonoPoints(lati) {
-  const pts = []
-  for (let i = 0; i < lati; i++) {
-    const angolo = (Math.PI * 2 * i) / lati - Math.PI / 2
-    const x = 50 + 44 * Math.cos(angolo)
-    const y = 50 + 44 * Math.sin(angolo)
-    pts.push(`${x.toFixed(1)},${y.toFixed(1)}`)
-  }
-  return pts.join(' ')
-}
-
-// Mostra un dado per ciascun singolo dado lanciato, raggruppati per tipo
-function DadoSingolo({ sides, valoreFinale, rolling }) {
-  const [display, setDisplay] = useState(valoreFinale)
-
-  useEffect(() => {
-    if (!rolling) {
-      setDisplay(valoreFinale)
-      return
-    }
-    let ticks = 0
-    const id = setInterval(() => {
-      setDisplay(1 + Math.floor(Math.random() * sides))
-      ticks += 1
-      if (ticks > 8) clearInterval(id)
-    }, 60)
-    return () => clearInterval(id)
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [rolling])
-
-  return (
-    <div className={`die-wrapper die-wrapper-small ${rolling ? 'die-rolling' : ''}`}>
-      <DiceFace value={display} sides={sides} size={48} />
-    </div>
-  )
-}
-
-function RollingDice({ breakdown, rolling }) {
-  const gruppi = breakdown && breakdown.length > 0 ? breakdown : [{ sides: 6, values: [6], segno: 1 }]
-
-  return (
-    <div className="dice-tray">
-      {gruppi.map((gruppo, gi) => (
-        <div key={gi} className="dice-tray-group">
-          {gruppo.segno < 0 && <span className="dice-tray-sign">−</span>}
-          {gruppo.values.map((valore, vi) => (
-            <DadoSingolo key={vi} sides={gruppo.sides} valoreFinale={valore} rolling={rolling} />
-          ))}
-        </div>
+    <svg width={size} height={size} viewBox="0 0 100 100">
+      <rect x="4" y="4" width="92" height="92" rx="16" fill="#E8DCC4" stroke="rgba(15,29,21,0.35)" strokeWidth="1.5" />
+      {pips.map(([cx, cy], i) => (
+        <circle key={i} cx={cx} cy={cy} r="9" fill="#0F1D15" />
       ))}
-    </div>
+    </svg>
   )
 }
 
@@ -127,7 +67,7 @@ function Landing() {
     <div className="landing">
       <div className="landing-hero">
         <div className="hero-die">
-          <DiceFace value={6} sides={6} size={88} />
+          <DiceFace2D size={88} />
         </div>
         <h1>Tavolo</h1>
         <p className="hero-sub">Il companion dadi per le tue campagne di gioco di ruolo.</p>
@@ -171,7 +111,7 @@ function NicknameGate({ roomCode, onJoin }) {
     <div className="landing">
       <div className="landing-hero">
         <div className="hero-die">
-          <DiceFace value={3} sides={6} size={72} />
+          <DiceFace2D size={72} />
         </div>
         <h1>Unisciti al tavolo</h1>
         <p className="hero-sub">
@@ -197,7 +137,7 @@ function NicknameGate({ roomCode, onJoin }) {
 // --- Stanza principale ---
 function Room({ roomCode }) {
   const [nickname, setNickname] = useState(() => sessionStorage.getItem(`nickname:${roomCode}`))
-  const [espressione, setEspressione] = useState('1d6')
+  const [espressione, setEspressione] = useState('')
   const [errore, setErrore] = useState(null)
   const [tiri, setTiri] = useState([])
   const [rolling, setRolling] = useState(false)
@@ -303,7 +243,7 @@ function Room({ roomCode }) {
       </header>
 
       <div className="dice-panel">
-        <RollingDice breakdown={ultimoBreakdown} rolling={rolling} />
+        <Dice3DTray breakdown={ultimoBreakdown} rolling={rolling} color={colorePerNickname(nickname)} />
 
         <div className="dice-type-selector">
           {TIPI_DADO.map((tipo) => (
@@ -332,8 +272,8 @@ function Room({ roomCode }) {
           />
           {errore && <p className="expression-error">{errore}</p>}
 
-          <button className="btn-primary btn-roll" onClick={lancia} disabled={rolling}>
-            {rolling ? 'Lancio…' : `Lancia ${espressione || '…'}`}
+          <button className="btn-primary btn-roll" onClick={lancia} disabled={rolling || !espressione.trim()}>
+            {rolling ? 'Lancio…' : espressione.trim() ? `Lancia ${espressione}` : 'Lancia'}
           </button>
         </div>
       </div>
@@ -343,8 +283,12 @@ function Room({ roomCode }) {
         {tiri.length === 0 && <p className="storico-empty">Nessun tiro ancora. Rompete il ghiaccio!</p>}
         <ul className="storico-list">
           {tiri.map((t) => (
-            <li key={t.id ?? `${t.created_at}-${t.nickname}`} className="storico-item">
-              <span className="storico-nome">{t.nickname}</span>
+            <li
+              key={t.id ?? `${t.created_at}-${t.nickname}`}
+              className="storico-item"
+              style={{ borderLeftColor: colorePerNickname(t.nickname) }}
+            >
+              <span className="storico-nome" style={{ color: colorePerNickname(t.nickname) }}>{t.nickname}</span>
               <span className="storico-dadi">
                 {t.notation || `${t.dice_count}d${t.dice_sides}`}: {formattaDettaglioTiro(t)}
               </span>
