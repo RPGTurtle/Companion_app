@@ -218,8 +218,37 @@ button:focus-visible, input:focus-visible {
   transform-style: preserve-3d;
 }
 
+.die-wrapper-small {
+  filter: drop-shadow(0 4px 10px rgba(0,0,0,0.35));
+}
+
 .die-rolling {
   animation: tumble 0.55s ease-out;
+}
+
+.dice-tray {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  align-items: center;
+  gap: 14px;
+  max-width: 100%;
+}
+
+.dice-tray-group {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px;
+  background: rgba(15, 29, 21, 0.4);
+  border-radius: 12px;
+}
+
+.dice-tray-sign {
+  color: var(--brick-bright);
+  font-weight: 700;
+  font-size: 1.2rem;
+  margin-right: 2px;
 }
 
 @keyframes tumble {

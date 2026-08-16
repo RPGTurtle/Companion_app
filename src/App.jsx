@@ -18,7 +18,7 @@ function getPath() {
 }
 
 // --- Dadi rapidi da inserire nell'espressione con un tap ---
-const TIPI_DADO = [4, 6, 8, 12, 20, 100]
+const TIPI_DADO = [4, 6, 8, 10, 12, 20, 100]
 
 // --- Faccia di dado con pallini reali (solo per d6, gli altri mostrano il numero) ---
 const PIP_LAYOUTS = {
@@ -43,7 +43,7 @@ function DiceFace({ value, sides, size = 56 }) {
     )
   }
 
-  const latiPoligono = sides === 4 ? 3 : sides === 8 ? 8 : sides === 12 ? 10 : sides === 20 ? 6 : 8
+  const latiPoligono = sides === 4 ? 3 : sides === 8 ? 8 : sides === 10 ? 5 : sides === 12 ? 10 : sides === 20 ? 6 : 8
   const points = poligonoPoints(latiPoligono)
   return (
     <svg width={size} height={size} viewBox="0 0 100 100" className="dice-face">
@@ -64,19 +64,18 @@ function poligonoPoints(lati) {
   return pts.join(' ')
 }
 
-// Mostra un dado per ciascun gruppo lanciato (il primo dado del gruppo più numeroso, semplice euristica)
-function RollingDie({ breakdown, rolling }) {
-  const primoGruppo = breakdown && breakdown.length > 0 ? breakdown[0] : { sides: 6, values: [6] }
-  const [display, setDisplay] = useState(primoGruppo.values[0])
+// Mostra un dado per ciascun singolo dado lanciato, raggruppati per tipo
+function DadoSingolo({ sides, valoreFinale, rolling }) {
+  const [display, setDisplay] = useState(valoreFinale)
 
   useEffect(() => {
     if (!rolling) {
-      setDisplay(primoGruppo.values[0])
+      setDisplay(valoreFinale)
       return
     }
     let ticks = 0
     const id = setInterval(() => {
-      setDisplay(1 + Math.floor(Math.random() * primoGruppo.sides))
+      setDisplay(1 + Math.floor(Math.random() * sides))
       ticks += 1
       if (ticks > 8) clearInterval(id)
     }, 60)
@@ -85,8 +84,25 @@ function RollingDie({ breakdown, rolling }) {
   }, [rolling])
 
   return (
-    <div className={`die-wrapper ${rolling ? 'die-rolling' : ''}`}>
-      <DiceFace value={display} sides={primoGruppo.sides} size={72} />
+    <div className={`die-wrapper die-wrapper-small ${rolling ? 'die-rolling' : ''}`}>
+      <DiceFace value={display} sides={sides} size={48} />
+    </div>
+  )
+}
+
+function RollingDice({ breakdown, rolling }) {
+  const gruppi = breakdown && breakdown.length > 0 ? breakdown : [{ sides: 6, values: [6], segno: 1 }]
+
+  return (
+    <div className="dice-tray">
+      {gruppi.map((gruppo, gi) => (
+        <div key={gi} className="dice-tray-group">
+          {gruppo.segno < 0 && <span className="dice-tray-sign">−</span>}
+          {gruppo.values.map((valore, vi) => (
+            <DadoSingolo key={vi} sides={gruppo.sides} valoreFinale={valore} rolling={rolling} />
+          ))}
+        </div>
+      ))}
     </div>
   )
 }
@@ -287,7 +303,7 @@ function Room({ roomCode }) {
       </header>
 
       <div className="dice-panel">
-        <RollingDie breakdown={ultimoBreakdown} rolling={rolling} />
+        <RollingDice breakdown={ultimoBreakdown} rolling={rolling} />
 
         <div className="dice-type-selector">
           {TIPI_DADO.map((tipo) => (
