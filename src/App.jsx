@@ -204,6 +204,7 @@ function Room({ roomCode }) {
 
     setRolling(true)
     setUltimoBreakdown(esito.breakdown)
+    setEspressione('')
 
     setTimeout(async () => {
       setRolling(false)
