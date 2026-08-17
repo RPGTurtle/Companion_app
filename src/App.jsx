@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useRef, useState } from 'react'
 import { supabase } from './supabaseClient'
 import { lanciaEspressione, formattaNotazione } from './diceNotation'
 import { Dice3DTray } from './Dice3D'
-import { PALETTE_SFONDI, scurisciHex, classificaMedia } from './roomExtras'
+import { PALETTE_SFONDI, scurisciHex, classificaMedia, pathSpicchio } from './roomExtras'
 
 // --- Utility: codice stanza leggibile, tipo "CERVO-4821" ---
 const ANIMALI = [
@@ -27,6 +27,25 @@ function colorePerNickname(nome) {
   }
   const hue = Math.abs(hash) % 360
   return `hsl(${hue}, 62%, 58%)`
+}
+
+// --- Cerchio a spicchi (orologio/countdown) ---
+function OrologioSVG({ totale, completati, size = 90 }) {
+  const cx = 50, cy = 50, r = 46
+  return (
+    <svg width={size} height={size} viewBox="0 0 100 100">
+      {Array.from({ length: totale }).map((_, i) => (
+        <path
+          key={i}
+          d={pathSpicchio(cx, cy, r, i, totale)}
+          fill={i < completati ? '#C9A227' : '#0F1D15'}
+          stroke="#E8DCC4"
+          strokeOpacity="0.3"
+          strokeWidth="1.5"
+        />
+      ))}
+    </svg>
+  )
 }
 
 // --- Dadi rapidi da inserire nell'espressione con un tap ---
@@ -152,6 +171,9 @@ function Room({ roomCode }) {
   const [linkImmagine, setLinkImmagine] = useState('')
   const [erroreGM, setErroreGM] = useState(null)
   const [caricamentoFile, setCaricamentoFile] = useState(null)
+  const [orologi, setOrologi] = useState([])
+  const [nuovoNomeOrologio, setNuovoNomeOrologio] = useState('')
+  const [nuovaTagliaOrologio, setNuovaTagliaOrologio] = useState(6)
   const listEndRef = useRef(null)
 
   useEffect(() => {
@@ -180,6 +202,16 @@ function Room({ roomCode }) {
     }
     caricaImpostazioni()
 
+    async function caricaOrologi() {
+      const { data } = await supabase
+        .from('room_clocks')
+        .select('*')
+        .eq('room_code', roomCode)
+        .order('ordine', { ascending: true })
+      if (mounted && data) setOrologi(data)
+    }
+    caricaOrologi()
+
     const channel = supabase
       .channel(`room:${roomCode}`)
       .on(
@@ -194,6 +226,27 @@ function Room({ roomCode }) {
         { event: '*', schema: 'public', table: 'room_settings', filter: `room_code=eq.${roomCode}` },
         (payload) => {
           if (payload.new) setImpostazioni(payload.new)
+        }
+      )
+      .on(
+        'postgres_changes',
+        { event: 'INSERT', schema: 'public', table: 'room_clocks', filter: `room_code=eq.${roomCode}` },
+        (payload) => {
+          setOrologi((prev) => [...prev, payload.new].sort((a, b) => a.ordine - b.ordine))
+        }
+      )
+      .on(
+        'postgres_changes',
+        { event: 'UPDATE', schema: 'public', table: 'room_clocks', filter: `room_code=eq.${roomCode}` },
+        (payload) => {
+          setOrologi((prev) => prev.map((o) => (o.id === payload.new.id ? payload.new : o)))
+        }
+      )
+      .on(
+        'postgres_changes',
+        { event: 'DELETE', schema: 'public', table: 'room_clocks', filter: `room_code=eq.${roomCode}` },
+        (payload) => {
+          setOrologi((prev) => prev.filter((o) => o.id !== payload.old.id))
         }
       )
       .subscribe()
@@ -336,6 +389,27 @@ function Room({ roomCode }) {
     setCaricamentoFile(null)
   }
 
+  // --- Gestione orologi/countdown (solo GM) ---
+  async function creaOrologio() {
+    const nome = nuovoNomeOrologio.trim()
+    if (!nome) return
+    await supabase.from('room_clocks').insert({
+      room_code: roomCode,
+      nome,
+      segmenti_totali: nuovaTagliaOrologio,
+      segmenti_completati: 0,
+    })
+    setNuovoNomeOrologio('')
+  }
+
+  async function aggiornaOrologio(id, completati) {
+    await supabase.from('room_clocks').update({ segmenti_completati: completati }).eq('id', id)
+  }
+
+  async function eliminaOrologio(id) {
+    await supabase.from('room_clocks').delete().eq('id', id)
+  }
+
   if (!nickname) {
     return <NicknameGate roomCode={roomCode} onJoin={setNickname} />
   }
@@ -450,6 +524,80 @@ function Room({ roomCode }) {
                 Ogni giocatore riproduce il brano dal proprio dispositivo: non è sincronizzato al secondo tra tutti, ma serve bene come sottofondo d'atmosfera.
               </p>
             </div>
+
+            <div className="gm-section">
+              <label>Orologi / countdown</label>
+              <div className="gm-inline-form">
+                <input
+                  type="text"
+                  className="expression-input"
+                  placeholder="Nome (es. Allarme, Ritirata, Rituale)"
+                  value={nuovoNomeOrologio}
+                  onChange={(e) => setNuovoNomeOrologio(e.target.value)}
+                  onKeyDown={(e) => { if (e.key === 'Enter') creaOrologio() }}
+                />
+                <input
+                  type="number"
+                  className="gm-select gm-taglia-input"
+                  min="2"
+                  value={nuovaTagliaOrologio}
+                  onChange={(e) => setNuovaTagliaOrologio(Math.max(2, Number(e.target.value) || 2))}
+                  title="Numero di spicchi"
+                />
+                <button className="btn-secondary" onClick={creaOrologio}>Crea</button>
+              </div>
+
+              {orologi.length > 0 && (
+                <div className="gm-clocks-list">
+                  {orologi.map((o) => (
+                    <div key={o.id} className="gm-clock-row">
+                      <OrologioSVG totale={o.segmenti_totali} completati={o.segmenti_completati} size={52} />
+                      <div className="gm-clock-info">
+                        <span className="gm-clock-nome">
+                          {o.nome}
+                          {o.segmenti_completati >= o.segmenti_totali && <span className="gm-clock-completo">✓ Completo</span>}
+                        </span>
+                        <div className="gm-clock-steppers">
+                          <button
+                            type="button"
+                            className="stepper-btn"
+                            onClick={() => aggiornaOrologio(o.id, Math.max(0, o.segmenti_completati - 1))}
+                          >
+                            −
+                          </button>
+                          <span className="gm-clock-frazione">{o.segmenti_completati}/{o.segmenti_totali}</span>
+                          <button
+                            type="button"
+                            className="stepper-btn"
+                            onClick={() => aggiornaOrologio(o.id, Math.min(o.segmenti_totali, o.segmenti_completati + 1))}
+                          >
+                            +
+                          </button>
+                        </div>
+                      </div>
+                      <button className="btn-ghost gm-clock-delete" onClick={() => eliminaOrologio(o.id)} title="Elimina orologio">
+                        🗑️
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
+        {orologi.length > 0 && (
+          <div className="clocks-display">
+            {orologi.map((o) => (
+              <div key={o.id} className="clock-display-item">
+                <OrologioSVG totale={o.segmenti_totali} completati={o.segmenti_completati} size={84} />
+                <span className="clock-display-nome">
+                  {o.nome}
+                  {o.segmenti_completati >= o.segmenti_totali && <span className="gm-clock-completo">✓</span>}
+                </span>
+                <span className="clock-display-frazione">{o.segmenti_completati}/{o.segmenti_totali}</span>
+              </div>
+            ))}
           </div>
         )}
 
@@ -515,7 +663,56 @@ function Room({ roomCode }) {
 }
 
 // --- Player musicale condiviso, visibile a tutti i giocatori della stanza ---
+// Il volume è locale al browser di ciascuno: non viene mai sincronizzato con gli altri.
+function useVolumeLocale() {
+  const [volume, setVolume] = useState(() => {
+    const salvato = localStorage.getItem('tavolo-volume')
+    return salvato !== null ? Number(salvato) : 70
+  })
+
+  function aggiorna(v) {
+    setVolume(v)
+    localStorage.setItem('tavolo-volume', String(v))
+  }
+
+  return [volume, aggiorna]
+}
+
+function ControlloVolume({ volume, onChange }) {
+  return (
+    <div className="volume-control">
+      <span className="volume-icon">{volume === 0 ? '🔇' : volume < 50 ? '🔉' : '🔊'}</span>
+      <input
+        type="range"
+        min="0"
+        max="100"
+        value={volume}
+        onChange={(e) => onChange(Number(e.target.value))}
+        className="volume-slider"
+        aria-label="Volume (solo per te)"
+      />
+      <span className="volume-value">{volume}</span>
+    </div>
+  )
+}
+
 function MediaPlayer({ tipo, url }) {
+  const [volume, setVolume] = useVolumeLocale()
+  const audioRef = useRef(null)
+  const iframeRef = useRef(null)
+
+  useEffect(() => {
+    if (audioRef.current) audioRef.current.volume = volume / 100
+  }, [volume, tipo])
+
+  useEffect(() => {
+    if (tipo !== 'youtube' || !iframeRef.current) return
+    iframeRef.current.contentWindow?.postMessage(
+      JSON.stringify({ event: 'command', func: 'setVolume', args: [volume] }),
+      '*'
+    )
+  }, [volume, tipo])
+
   if (tipo === 'youtube') {
     const match = url.match(/(?:youtube\.com\/watch\?v=|youtu\.be\/|youtube\.com\/embed\/)([a-zA-Z0-9_-]{6,})/)
     const id = match ? match[1] : null
@@ -524,14 +721,22 @@ function MediaPlayer({ tipo, url }) {
       <div className="media-player">
         <p className="media-player-label">🎵 Musica impostata dal GM</p>
         <iframe
+          ref={iframeRef}
           width="100%"
           height="80"
-          src={`https://www.youtube.com/embed/${id}`}
+          src={`https://www.youtube.com/embed/${id}?enablejsapi=1`}
           title="Musica della stanza"
           frameBorder="0"
           allow="autoplay; encrypted-media"
           allowFullScreen
+          onLoad={() => {
+            iframeRef.current?.contentWindow?.postMessage(
+              JSON.stringify({ event: 'command', func: 'setVolume', args: [volume] }),
+              '*'
+            )
+          }}
         />
+        <ControlloVolume volume={volume} onChange={setVolume} />
       </div>
     )
   }
@@ -551,6 +756,7 @@ function MediaPlayer({ tipo, url }) {
           allow="encrypted-media"
           title="Musica della stanza"
         />
+        <p className="volume-hint">Il volume si regola direttamente nel player Spotify qui sopra.</p>
       </div>
     )
   }
@@ -559,7 +765,8 @@ function MediaPlayer({ tipo, url }) {
     return (
       <div className="media-player">
         <p className="media-player-label">🎵 Musica impostata dal GM</p>
-        <audio controls src={url} style={{ width: '100%' }} />
+        <audio ref={audioRef} controls src={url} style={{ width: '100%' }} />
+        <ControlloVolume volume={volume} onChange={setVolume} />
       </div>
     )
   }

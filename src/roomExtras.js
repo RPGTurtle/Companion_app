@@ -37,3 +37,20 @@ export function classificaMedia(url) {
 
   return null
 }
+
+// --- Geometria per gli "orologi" a spicchi (countdown alla Blades in the Dark) ---
+function polareCartesiano(cx, cy, r, angoloDeg) {
+  const rad = ((angoloDeg - 90) * Math.PI) / 180
+  return { x: cx + r * Math.cos(rad), y: cy + r * Math.sin(rad) }
+}
+
+// Restituisce il path SVG di un singolo spicchio (indice i su un totale di N)
+export function pathSpicchio(cx, cy, r, indice, totale) {
+  const angoloPerSpicchio = 360 / totale
+  const inizio = indice * angoloPerSpicchio
+  const fine = inizio + angoloPerSpicchio
+  const p1 = polareCartesiano(cx, cy, r, fine)
+  const p2 = polareCartesiano(cx, cy, r, inizio)
+  const largeArc = angoloPerSpicchio > 180 ? 1 : 0
+  return `M ${cx} ${cy} L ${p1.x.toFixed(2)} ${p1.y.toFixed(2)} A ${r} ${r} 0 ${largeArc} 0 ${p2.x.toFixed(2)} ${p2.y.toFixed(2)} Z`
+}

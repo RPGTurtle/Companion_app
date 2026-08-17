@@ -528,9 +528,176 @@ button:focus-visible, input:focus-visible {
   display: block;
 }
 
+.volume-control {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 10px;
+}
+
+.volume-icon {
+  font-size: 1rem;
+  width: 20px;
+  text-align: center;
+}
+
+.volume-slider {
+  flex: 1;
+  height: 4px;
+  -webkit-appearance: none;
+  appearance: none;
+  background: rgba(232, 220, 196, 0.2);
+  border-radius: 999px;
+  outline: none;
+}
+.volume-slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: var(--gold);
+  cursor: pointer;
+}
+.volume-slider::-moz-range-thumb {
+  width: 16px;
+  height: 16px;
+  border: none;
+  border-radius: 50%;
+  background: var(--gold);
+  cursor: pointer;
+}
+
+.volume-value {
+  font-size: 0.75rem;
+  color: var(--ivory-dim);
+  min-width: 2.5ch;
+  text-align: right;
+}
+
+.volume-hint {
+  margin: 10px 0 0;
+  font-size: 0.7rem;
+  color: var(--ivory-dim);
+  font-style: italic;
+}
+
+/* --- Orologi/countdown --- */
+.gm-select {
+  background: var(--felt-deep);
+  border: 1px solid rgba(232, 220, 196, 0.25);
+  border-radius: 10px;
+  color: var(--ivory);
+  padding: 0 10px;
+  font-family: inherit;
+  font-size: 0.85rem;
+}
+
+.gm-taglia-input {
+  width: 70px;
+  text-align: center;
+}
+
+.gm-clocks-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-top: 4px;
+}
+
+.gm-clock-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  background: rgba(15, 29, 21, 0.4);
+  border-radius: 12px;
+  padding: 8px 10px;
+}
+
+.gm-clock-info {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.gm-clock-nome {
+  font-size: 0.85rem;
+  font-weight: 700;
+  color: var(--ivory);
+}
+
+.gm-clock-completo {
+  margin-left: 8px;
+  color: var(--gold);
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.gm-clock-steppers {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.gm-clock-steppers .stepper-btn {
+  width: 28px;
+  height: 28px;
+  font-size: 1rem;
+}
+
+.gm-clock-frazione {
+  font-size: 0.85rem;
+  color: var(--ivory-dim);
+  min-width: 3.5ch;
+  text-align: center;
+}
+
+.gm-clock-delete {
+  padding: 8px;
+  font-size: 1rem;
+  border-color: transparent;
+}
+.gm-clock-delete:hover {
+  border-color: var(--brick-bright);
+}
+
+.clocks-display {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 20px;
+  background: rgba(15, 29, 21, 0.35);
+  border: 1px solid rgba(232, 220, 196, 0.1);
+  border-radius: 16px;
+  padding: 18px;
+}
+
+.clock-display-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  min-width: 90px;
+}
+
+.clock-display-nome {
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: var(--ivory);
+  text-align: center;
+}
+
+.clock-display-frazione {
+  font-size: 0.75rem;
+  color: var(--ivory-dim);
+}
+
 /* --- Responsive --- */
 @media (max-width: 420px) {
   .landing-hero h1 { font-size: 2.1rem; }
   .storico-item { grid-template-columns: 1fr auto; }
   .storico-dadi { grid-column: 1 / -1; }
+  .gm-inline-form { flex-wrap: wrap; }
 }
