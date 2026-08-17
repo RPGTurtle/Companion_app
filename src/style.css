@@ -484,6 +484,22 @@ button:focus-visible, input:focus-visible {
   padding: 6px 12px;
 }
 
+.gm-file-btn {
+  align-self: flex-start;
+  display: inline-block;
+  border: 1px dashed rgba(232, 220, 196, 0.35);
+  border-radius: 10px;
+  padding: 8px 14px;
+  font-size: 0.8rem;
+  color: var(--ivory-dim);
+  cursor: pointer;
+  transition: border-color 0.15s ease, color 0.15s ease;
+}
+.gm-file-btn:hover {
+  border-color: var(--gold);
+  color: var(--gold);
+}
+
 .gm-hint {
   color: var(--ivory-dim);
   font-size: 0.75rem;

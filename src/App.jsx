@@ -151,6 +151,7 @@ function Room({ roomCode }) {
   const [linkMedia, setLinkMedia] = useState('')
   const [linkImmagine, setLinkImmagine] = useState('')
   const [erroreGM, setErroreGM] = useState(null)
+  const [caricamentoFile, setCaricamentoFile] = useState(null)
   const listEndRef = useRef(null)
 
   useEffect(() => {
@@ -252,28 +253,37 @@ function Room({ roomCode }) {
     setTimeout(() => setCopiato(false), 1800)
   }
 
+  async function salvaImpostazioni(campi) {
+    const { data, error } = await supabase
+      .from('room_settings')
+      .upsert({ room_code: roomCode, ...campi }, { onConflict: 'room_code' })
+      .select()
+      .single()
+
+    if (error) {
+      setErroreGM(`Errore nel salvataggio: ${error.message}`)
+      return false
+    }
+    setImpostazioni(data)
+    return true
+  }
+
   async function applicaColore(colore) {
-    await supabase.from('room_settings').upsert(
-      { room_code: roomCode, background_color: colore, background_image: null },
-      { onConflict: 'room_code' }
-    )
+    setErroreGM(null)
+    await salvaImpostazioni({ background_color: colore, background_image: null })
   }
 
   async function applicaImmagine() {
     const url = linkImmagine.trim()
     if (!url) return
-    await supabase.from('room_settings').upsert(
-      { room_code: roomCode, background_image: url },
-      { onConflict: 'room_code' }
-    )
-    setLinkImmagine('')
+    setErroreGM(null)
+    const ok = await salvaImpostazioni({ background_image: url })
+    if (ok) setLinkImmagine('')
   }
 
   async function rimuoviImmagine() {
-    await supabase.from('room_settings').upsert(
-      { room_code: roomCode, background_image: null },
-      { onConflict: 'room_code' }
-    )
+    setErroreGM(null)
+    await salvaImpostazioni({ background_image: null })
   }
 
   async function applicaMedia() {
@@ -283,18 +293,47 @@ function Room({ roomCode }) {
       setErroreGM('Link non riconosciuto: usa un .mp3, un link YouTube o un link Spotify')
       return
     }
-    await supabase.from('room_settings').upsert(
-      { room_code: roomCode, media_url: linkMedia.trim(), media_type: riconosciuto.tipo },
-      { onConflict: 'room_code' }
-    )
-    setLinkMedia('')
+    const ok = await salvaImpostazioni({ media_url: linkMedia.trim(), media_type: riconosciuto.tipo })
+    if (ok) setLinkMedia('')
   }
 
   async function fermaMedia() {
-    await supabase.from('room_settings').upsert(
-      { room_code: roomCode, media_url: null, media_type: null },
-      { onConflict: 'room_code' }
-    )
+    setErroreGM(null)
+    await salvaImpostazioni({ media_url: null, media_type: null })
+  }
+
+  // --- Caricamento file dal dispositivo (immagine di sfondo o mp3) ---
+  async function caricaFile(file, tipo) {
+    setErroreGM(null)
+
+    const limiteMB = tipo === 'immagine' ? 8 : 15
+    if (file.size > limiteMB * 1024 * 1024) {
+      setErroreGM(`File troppo grande (max ${limiteMB} MB)`)
+      return
+    }
+
+    setCaricamentoFile(tipo)
+    const percorso = `${roomCode}/${Date.now()}-${file.name.replace(/[^a-zA-Z0-9.\-_]/g, '_')}`
+
+    const { error: erroreUpload } = await supabase.storage
+      .from('room-media')
+      .upload(percorso, file, { upsert: true })
+
+    if (erroreUpload) {
+      setCaricamentoFile(null)
+      setErroreGM(`Errore nel caricamento: ${erroreUpload.message}`)
+      return
+    }
+
+    const { data } = supabase.storage.from('room-media').getPublicUrl(percorso)
+    const urlPubblico = data.publicUrl
+
+    if (tipo === 'immagine') {
+      await salvaImpostazioni({ background_image: urlPubblico })
+    } else {
+      await salvaImpostazioni({ media_url: urlPubblico, media_type: 'mp3' })
+    }
+    setCaricamentoFile(null)
   }
 
   if (!nickname) {
@@ -355,34 +394,54 @@ function Room({ roomCode }) {
             </div>
 
             <div className="gm-section">
-              <label>Immagine di sfondo (URL)</label>
+              <label>Immagine di sfondo</label>
               <div className="gm-inline-form">
                 <input
                   type="text"
                   className="expression-input"
-                  placeholder="https://..."
+                  placeholder="https://... (o carica un file)"
                   value={linkImmagine}
                   onChange={(e) => setLinkImmagine(e.target.value)}
                 />
-                <button className="btn-secondary" onClick={applicaImmagine}>Applica</button>
+                <button className="btn-secondary" onClick={applicaImmagine}>Applica link</button>
               </div>
+              <label className="gm-file-btn">
+                {caricamentoFile === 'immagine' ? 'Caricamento…' : '📁 Carica immagine dal dispositivo'}
+                <input
+                  type="file"
+                  accept="image/*"
+                  hidden
+                  disabled={caricamentoFile !== null}
+                  onChange={(e) => { if (e.target.files[0]) caricaFile(e.target.files[0], 'immagine'); e.target.value = '' }}
+                />
+              </label>
               {impostazioni?.background_image && (
                 <button className="btn-ghost gm-remove-btn" onClick={rimuoviImmagine}>Rimuovi immagine</button>
               )}
             </div>
 
             <div className="gm-section">
-              <label>Musica per la stanza (.mp3, YouTube o Spotify)</label>
+              <label>Musica per la stanza</label>
               <div className="gm-inline-form">
                 <input
                   type="text"
                   className="expression-input"
-                  placeholder="https://youtube.com/watch?v=..."
+                  placeholder="Link YouTube, Spotify o .mp3"
                   value={linkMedia}
                   onChange={(e) => { setLinkMedia(e.target.value); setErroreGM(null) }}
                 />
-                <button className="btn-secondary" onClick={applicaMedia}>Applica</button>
+                <button className="btn-secondary" onClick={applicaMedia}>Applica link</button>
               </div>
+              <label className="gm-file-btn">
+                {caricamentoFile === 'mp3' ? 'Caricamento…' : '📁 Carica mp3 dal dispositivo'}
+                <input
+                  type="file"
+                  accept="audio/mpeg,audio/mp3,.mp3"
+                  hidden
+                  disabled={caricamentoFile !== null}
+                  onChange={(e) => { if (e.target.files[0]) caricaFile(e.target.files[0], 'mp3'); e.target.value = '' }}
+                />
+              </label>
               {erroreGM && <p className="expression-error">{erroreGM}</p>}
               {impostazioni?.media_url && (
                 <button className="btn-ghost gm-remove-btn" onClick={fermaMedia}>Ferma musica</button>
