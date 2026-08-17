@@ -409,7 +409,9 @@ function Room({ roomCode }) {
   }
 
   async function eliminaOrologio(id) {
-    await supabase.from('room_clocks').delete().eq('id', id)
+    setOrologi((prev) => prev.filter((o) => o.id !== id))
+    const { error } = await supabase.from('room_clocks').delete().eq('id', id)
+    if (error) setErroreGM(`Errore nell'eliminazione: ${error.message}`)
   }
 
   if (!nickname) {
