@@ -173,7 +173,7 @@ function Room({ roomCode }) {
   const [caricamentoFile, setCaricamentoFile] = useState(null)
   const [orologi, setOrologi] = useState([])
   const [nuovoNomeOrologio, setNuovoNomeOrologio] = useState('')
-  const [nuovaTagliaOrologio, setNuovaTagliaOrologio] = useState(6)
+  const [nuovaTagliaOrologio, setNuovaTagliaOrologio] = useState('')
   const listEndRef = useRef(null)
 
   useEffect(() => {
@@ -392,14 +392,16 @@ function Room({ roomCode }) {
   // --- Gestione orologi/countdown (solo GM) ---
   async function creaOrologio() {
     const nome = nuovoNomeOrologio.trim()
+    const taglia = Math.max(2, parseInt(nuovaTagliaOrologio, 10) || 6)
     if (!nome) return
     await supabase.from('room_clocks').insert({
       room_code: roomCode,
       nome,
-      segmenti_totali: nuovaTagliaOrologio,
+      segmenti_totali: taglia,
       segmenti_completati: 0,
     })
     setNuovoNomeOrologio('')
+    setNuovaTagliaOrologio('')
   }
 
   async function aggiornaOrologio(id, completati) {
@@ -540,8 +542,10 @@ function Room({ roomCode }) {
                   type="number"
                   className="gm-select gm-taglia-input"
                   min="2"
+                  placeholder="6"
                   value={nuovaTagliaOrologio}
-                  onChange={(e) => setNuovaTagliaOrologio(Math.max(2, Number(e.target.value) || 2))}
+                  onChange={(e) => setNuovaTagliaOrologio(e.target.value)}
+                  onKeyDown={(e) => { if (e.key === 'Enter') creaOrologio() }}
                   title="Numero di spicchi"
                 />
                 <button className="btn-secondary" onClick={creaOrologio}>Crea</button>
