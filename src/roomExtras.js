@@ -8,7 +8,14 @@ export const PALETTE_SFONDI = [
   { nome: 'Ambra', colore: '#3A2A16' },
 ]
 
-// Scurisce un colore esadecimale di una percentuale, per costruire il gradiente di sfondo
+// Converte un colore esadecimale in rgba() con la trasparenza indicata
+export function hexToRgba(hex, alpha = 0.35) {
+  const pulito = hex.replace('#', '')
+  const r = parseInt(pulito.substring(0, 2), 16)
+  const g = parseInt(pulito.substring(2, 4), 16)
+  const b = parseInt(pulito.substring(4, 6), 16)
+  return `rgba(${r}, ${g}, ${b}, ${alpha})`
+}
 export function scurisciHex(hex, quantita = 0.55) {
   const pulito = hex.replace('#', '')
   const r = parseInt(pulito.substring(0, 2), 16)

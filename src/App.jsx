@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useRef, useState } from 'react'
 import { supabase } from './supabaseClient'
 import { lanciaEspressione, formattaNotazione } from './diceNotation'
 import { Dice3DTray } from './Dice3D'
-import { PALETTE_SFONDI, scurisciHex, classificaMedia, pathSpicchio } from './roomExtras'
+import { PALETTE_SFONDI, scurisciHex, classificaMedia, pathSpicchio, hexToRgba } from './roomExtras'
 
 // --- Utility: codice stanza leggibile, tipo "CERVO-4821" ---
 const ANIMALI = [
@@ -174,6 +174,7 @@ function Room({ roomCode }) {
   const [orologi, setOrologi] = useState([])
   const [nuovoNomeOrologio, setNuovoNomeOrologio] = useState('')
   const [nuovaTagliaOrologio, setNuovaTagliaOrologio] = useState('')
+  const [videoAperto, setVideoAperto] = useState(false)
   const listEndRef = useRef(null)
 
   useEffect(() => {
@@ -424,6 +425,8 @@ function Room({ roomCode }) {
     ? { background: `radial-gradient(ellipse at top, ${impostazioni.background_color} 0%, ${scurisciHex(impostazioni.background_color)} 70%)` }
     : undefined
 
+  const colorePannelli = impostazioni?.background_color ? hexToRgba(impostazioni.background_color, 0.35) : null
+
   return (
     <div className="room-scene" style={sfondoStile}>
       <div className="room">
@@ -436,6 +439,9 @@ function Room({ roomCode }) {
             </p>
           </div>
           <div className="room-header-actions">
+            <button className="btn-ghost" onClick={() => setVideoAperto((v) => !v)}>
+              {videoAperto ? 'Chiudi video' : '🎥 Video/Audio'}
+            </button>
             {isGM && (
               <button className="btn-ghost" onClick={() => setPannelloAperto((v) => !v)}>
                 {pannelloAperto ? 'Chiudi pannello' : '🎛️ Pannello GM'}
@@ -446,6 +452,8 @@ function Room({ roomCode }) {
             </button>
           </div>
         </header>
+
+        {videoAperto && <VideoChiamata roomCode={roomCode} nickname={nickname} />}
 
         {impostazioni?.media_url && (
           <MediaPlayer tipo={impostazioni.media_type} url={impostazioni.media_url} />
@@ -593,7 +601,7 @@ function Room({ roomCode }) {
         )}
 
         {orologi.length > 0 && (
-          <div className="clocks-display">
+          <div className="clocks-display" style={colorePannelli ? { backgroundColor: colorePannelli } : undefined}>
             {orologi.map((o) => (
               <div key={o.id} className="clock-display-item">
                 <OrologioSVG totale={o.segmenti_totali} completati={o.segmenti_completati} size={84} />
@@ -607,7 +615,7 @@ function Room({ roomCode }) {
           </div>
         )}
 
-        <div className="dice-panel">
+        <div className="dice-panel" style={colorePannelli ? { backgroundColor: colorePannelli } : undefined}>
         <Dice3DTray breakdown={ultimoBreakdown} rolling={rolling} color={colorePerNickname(nickname)} />
 
         <div className="dice-type-selector">
@@ -651,7 +659,10 @@ function Room({ roomCode }) {
             <li
               key={t.id ?? `${t.created_at}-${t.nickname}`}
               className="storico-item"
-              style={{ borderLeftColor: colorePerNickname(t.nickname) }}
+              style={{
+                borderLeftColor: colorePerNickname(t.nickname),
+                ...(colorePannelli ? { backgroundColor: colorePannelli } : {}),
+              }}
             >
               <span className="storico-nome" style={{ color: colorePerNickname(t.nickname) }}>{t.nickname}</span>
               <span className="storico-dadi">
@@ -728,8 +739,8 @@ function MediaPlayer({ tipo, url }) {
         <p className="media-player-label">🎵 Musica impostata dal GM</p>
         <iframe
           ref={iframeRef}
+          className="youtube-frame"
           width="100%"
-          height="80"
           src={`https://www.youtube.com/embed/${id}?enablejsapi=1`}
           title="Musica della stanza"
           frameBorder="0"
@@ -778,6 +789,31 @@ function MediaPlayer({ tipo, url }) {
   }
 
   return null
+}
+
+// --- Videochiamata condivisa (Jitsi Meet, gratuito, nessuna configurazione lato server) ---
+function VideoChiamata({ roomCode, nickname }) {
+  const nomeStanzaJitsi = `TavoloDadi-${roomCode}-companion-gdr`
+  const src =
+    `https://meet.jit.si/${encodeURIComponent(nomeStanzaJitsi)}` +
+    `#config.prejoinPageEnabled=false` +
+    `&config.startWithVideoMuted=false` +
+    `&config.disableDeepLinking=true` +
+    `&userInfo.displayName=${encodeURIComponent(nickname)}`
+
+  return (
+    <div className="video-panel">
+      <iframe
+        src={src}
+        allow="camera; microphone; fullscreen; display-capture; autoplay"
+        className="video-iframe"
+        title="Videochiamata del tavolo"
+      />
+      <p className="gm-hint">
+        Videochiamata gratuita tramite Jitsi Meet: tutti i giocatori che aprono "🎥 Video/Audio" nella stessa stanza finiscono automaticamente nella stessa chiamata.
+      </p>
+    </div>
+  )
 }
 
 function formattaDettaglioTiro(t) {
