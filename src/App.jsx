@@ -791,55 +791,27 @@ function MediaPlayer({ tipo, url }) {
   return null
 }
 
-// --- Videochiamata condivisa (Jitsi Meet, gratuito, nessuna configurazione lato server) ---
-// --- Videochiamata condivisa (JaaS / Jitsi as a Service, tramite token generato dalla Edge Function) ---
-function caricaScriptJaas(appId) {
-  return new Promise((resolve, reject) => {
-    if (window.JitsiMeetExternalAPI) {
-      resolve()
-      return
-    }
-    const script = document.createElement('script')
-    script.src = `https://8x8.vc/${appId}/external_api.js`
-    script.async = true
-    script.onload = () => resolve()
-    script.onerror = () => reject(new Error('Impossibile caricare lo script di 8x8/JaaS'))
-    document.body.appendChild(script)
-  })
-}
-
+// --- Videochiamata condivisa (Daily.co, gratuito fino a 2.000 minuti-partecipante/mese) ---
 function VideoChiamata({ roomCode, nickname }) {
-  const containerRef = useRef(null)
-  const apiRef = useRef(null)
+  const iframeRef = useRef(null)
   const [stato, setStato] = useState('caricamento') // caricamento | pronto | errore
   const [erroreVideo, setErroreVideo] = useState(null)
-  const nomeStanzaJaas = `TavoloDadi-${roomCode}-companiongdr`.replace(/[^a-zA-Z0-9-]/g, '')
+  const [videoUrl, setVideoUrl] = useState(null)
+  const nomeStanzaDaily = `td-${roomCode}`.replace(/[^a-zA-Z0-9-]/g, '')
 
   useEffect(() => {
     let annullato = false
 
     async function avvia() {
       try {
-        const { data, error } = await supabase.functions.invoke('jaas-token', {
-          body: { room: nomeStanzaJaas, nickname },
+        const { data, error } = await supabase.functions.invoke('daily-room', {
+          body: { room: nomeStanzaDaily },
         })
         if (error) throw error
-        if (!data?.token || !data?.appId) throw new Error('Token non ricevuto')
+        if (!data?.url) throw new Error('URL della stanza non ricevuto')
         if (annullato) return
 
-        await caricaScriptJaas(data.appId)
-        if (annullato || !containerRef.current) return
-
-        apiRef.current = new window.JitsiMeetExternalAPI('8x8.vc', {
-          roomName: `${data.appId}/${data.room}`,
-          jwt: data.token,
-          parentNode: containerRef.current,
-          width: '100%',
-          height: '100%',
-          configOverwrite: { prejoinPageEnabled: false, disableDeepLinking: true },
-          userInfo: { displayName: nickname },
-        })
-
+        setVideoUrl(`${data.url}?userName=${encodeURIComponent(nickname)}`)
         setStato('pronto')
       } catch (err) {
         if (!annullato) {
@@ -852,19 +824,26 @@ function VideoChiamata({ roomCode, nickname }) {
 
     return () => {
       annullato = true
-      apiRef.current?.dispose?.()
-      apiRef.current = null
     }
   }, [roomCode, nickname])
 
   function apriSchermoIntero() {
-    containerRef.current?.requestFullscreen?.()
+    iframeRef.current?.requestFullscreen?.()
   }
 
   return (
     <div className="video-panel">
       <div className="video-frame-wrap">
-        <div ref={containerRef} className="video-iframe" />
+        {stato === 'pronto' && videoUrl && (
+          <iframe
+            ref={iframeRef}
+            src={videoUrl}
+            allow="camera; microphone; fullscreen; display-capture; autoplay"
+            allowFullScreen
+            className="video-iframe"
+            title="Videochiamata del tavolo"
+          />
+        )}
         {stato === 'caricamento' && <p className="video-status">Connessione alla videochiamata…</p>}
         {stato === 'errore' && <p className="video-status video-status-errore">⚠️ {erroreVideo}</p>}
         {stato === 'pronto' && (
@@ -874,7 +853,7 @@ function VideoChiamata({ roomCode, nickname }) {
         )}
       </div>
       <p className="gm-hint">
-        Videochiamata tramite Jitsi as a Service (8x8): tutti i giocatori che aprono "🎥 Video/Audio" nella stessa stanza finiscono automaticamente nella stessa chiamata.
+        Videochiamata tramite Daily.co: tutti i giocatori che aprono "🎥 Video/Audio" nella stessa stanza finiscono automaticamente nella stessa chiamata.
       </p>
     </div>
   )
