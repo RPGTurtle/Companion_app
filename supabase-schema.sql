@@ -4,7 +4,11 @@ create table if not exists rolls (
   id uuid primary key default gen_random_uuid(),
   room_code text not null,
   nickname text not null,
-  dice_count int not null,
+  dice_count int not null default 0,
+  dice_sides int not null default 0,
+  modifier int not null default 0,
+  notation text,
+  breakdown jsonb,
   results int[] not null,
   total int not null,
   created_at timestamptz not null default now()

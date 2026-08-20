@@ -96,6 +96,44 @@ Se hai già configurato Supabase in precedenza, esegui anche `supabase-migration
 
 Nel pannello GM è comparsa una sezione **"Orologi / countdown"**: il GM può creare un cerchio a spicchi (4, 6, 8, 10 o 12), dargli un nome, e poi usare i pulsanti +/− per marcare quanti spicchi sono completati. Ogni orologio creato compare **subito a tutti i giocatori nella stanza**, sopra il pannello di lancio, aggiornato in tempo reale. Quando tutti gli spicchi sono completati compare un'etichetta "✓ Completo" — la rimozione dalla visualizzazione resta comunque una scelta del GM (bottone 🗑️ nel pannello), non è automatica.
 
+## Aggiornamento: videochiamata condivisa
+
+Nessuna migrazione richiesta — è un semplice iframe incorporato, nessun dato passa da Supabase.
+
+Ogni giocatore trova un pulsante **"🎥 Video/Audio"** nell'intestazione della stanza (non solo il GM: chiunque può aprirlo). Apre/chiude una videochiamata tramite [Jitsi Meet](https://meet.jit.si), gratuita e senza account: tutti quelli che aprono il pannello nella stessa stanza di gioco finiscono automaticamente nella stessa chiamata (il nome della "stanza Jitsi" è derivato dal codice della stanza). Il nome mostrato in chiamata corrisponde al nickname scelto per giocare.
+
+**Limite onesto**: Jitsi Meet pubblico (`meet.jit.si`) è un servizio di terzi gratuito e stabile, ma non è infrastruttura tua — in rari casi di sovraccarico del server pubblico la qualità può risentirne. Per un progetto senza budget resta comunque l'opzione più solida, senza limiti di traffico noti e senza bisogno di creare account.
+
+## Aggiornamento: videochiamata condivisa (JaaS invece di meet.jit.si)
+
+`meet.jit.si` ha smesso di supportare bene l'incorporamento via iframe/API esterna (limita le sessioni embedded a pochi minuti), quindi la videochiamata usa ora **JaaS (Jitsi as a Service)**, il servizio gestito da 8x8: gratuito fino a 25 utenti attivi al mese, nessuna carta di credito richiesta.
+
+JaaS richiede un token (JWT) firmato con una chiave privata per ogni partecipante — la genera una piccola funzione server-side (**Supabase Edge Function**, gratuita fino a 500.000 chiamate/mese). Su richiesta esplicita, AppID/Key ID/chiave privata sono scritti direttamente nel file `supabase/functions/jaas-token/index.ts` invece che nei secrets di Supabase: **questo va bene solo se il repository GitHub resta privato**, perché chiunque acceda al codice ottiene accesso completo alla chiave (può generare token validi per qualsiasi stanza del tuo account JaaS).
+
+### Passi di configurazione
+
+**1. Installa il Supabase CLI in locale** (se non l'hai già)
+```
+npm install -g supabase
+supabase login
+```
+
+**2. Collega il CLI al tuo progetto Supabase**
+
+Nella cartella del progetto (quella con `supabase/functions/jaas-token/`):
+```
+supabase link --project-ref uxhfdcrwjufsdrlduett
+```
+
+**3. Distribuisci la funzione**
+```
+supabase functions deploy jaas-token
+```
+
+Il codice della funzione (già con le chiavi incluse) va comunque caricato su Supabase tramite questo comando — caricarlo solo su GitHub non basta, GitHub non esegue codice, serve il deploy per attivarla davvero.
+
+Da questo momento il pulsante "🎥 Video/Audio" nella stanza userà JaaS invece di meet.jit.si, senza limiti di tempo per sessione, restando nel piano gratuito.
+
 ## Come funziona
 
 - Chi apre il sito clicca **"Crea una nuova stanza"** → viene generato un codice tipo `LUPO-4821` e un link `tuosito.netlify.app/r/LUPO-4821`
