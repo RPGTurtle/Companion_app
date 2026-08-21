@@ -62,7 +62,8 @@ Deno.serve(async (req) => {
 
     if (!createResp.ok) {
       const dettaglio = await createResp.text();
-      throw new Error(`Creazione stanza Daily fallita: ${dettaglio}`);
+      console.error(`Creazione stanza Daily fallita (status ${createResp.status}):`, dettaglio);
+      throw new Error(`Creazione stanza Daily fallita (status ${createResp.status}): ${dettaglio}`);
     }
 
     const nuova = await createResp.json();
@@ -70,6 +71,7 @@ Deno.serve(async (req) => {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   } catch (err) {
+    console.error("Errore nella funzione daily-room:", err.message);
     return new Response(JSON.stringify({ error: err.message }), {
       status: 500,
       headers: { ...corsHeaders, "Content-Type": "application/json" },
