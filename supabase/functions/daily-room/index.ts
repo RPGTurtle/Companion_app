@@ -53,9 +53,6 @@ Deno.serve(async (req) => {
         privacy: "public",
         properties: {
           exp: scadenza,
-          enable_prejoin_ui: false,
-          enable_screenshare: true,
-          max_participants: 30,
         },
       }),
     });
