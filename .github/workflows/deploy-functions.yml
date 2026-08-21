@@ -23,13 +23,18 @@ jobs:
           SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
           SUPABASE_PROJECT_REF: ${{ secrets.SUPABASE_PROJECT_REF }}
 
-      - name: Imposta i secrets delle funzioni
-        run: supabase secrets set DAILY_API_KEY="$DAILY_API_KEY"
+      - name: Imposta i secrets delle funzioni (JaaS)
+        run: |
+          supabase secrets set JAAS_APP_ID="$JAAS_APP_ID"
+          supabase secrets set JAAS_KEY_ID="$JAAS_KEY_ID"
+          supabase secrets set JAAS_PRIVATE_KEY="$JAAS_PRIVATE_KEY"
         env:
           SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
-          DAILY_API_KEY: ${{ secrets.DAILY_API_KEY }}
+          JAAS_APP_ID: ${{ secrets.JAAS_APP_ID }}
+          JAAS_KEY_ID: ${{ secrets.JAAS_KEY_ID }}
+          JAAS_PRIVATE_KEY: ${{ secrets.JAAS_PRIVATE_KEY }}
 
-      - name: Distribuisci la funzione daily-room
-        run: supabase functions deploy daily-room
+      - name: Distribuisci la funzione jaas-token
+        run: supabase functions deploy jaas-token
         env:
           SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
