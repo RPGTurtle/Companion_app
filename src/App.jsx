@@ -175,6 +175,7 @@ function Room({ roomCode }) {
   const [nuovoNomeOrologio, setNuovoNomeOrologio] = useState('')
   const [nuovaTagliaOrologio, setNuovaTagliaOrologio] = useState('')
   const [videoAperto, setVideoAperto] = useState(false)
+  const [easterEgg, setEasterEgg] = useState(false)
   const listEndRef = useRef(null)
 
   useEffect(() => {
@@ -273,6 +274,27 @@ function Room({ roomCode }) {
   async function lancia() {
     if (rolling) return
     setErrore(null)
+
+    // 🐖 easter egg nascosto: nessun pulsante, bisogna sapere la parola magica
+    if (espressione.trim().toLowerCase() === 'porco') {
+      setRolling(true)
+      setEspressione('')
+      setTimeout(async () => {
+        setRolling(false)
+        setEasterEgg(true)
+        await supabase.from('rolls').insert({
+          room_code: roomCode,
+          nickname,
+          results: [],
+          total: 0,
+          notation: '🐖',
+          breakdown: [],
+          modifier: 0,
+        })
+        setTimeout(() => setEasterEgg(false), 2500)
+      }, 500)
+      return
+    }
 
     let esito
     try {
@@ -616,7 +638,11 @@ function Room({ roomCode }) {
         )}
 
         <div className="dice-panel" style={colorePannelli ? { backgroundColor: colorePannelli } : undefined}>
-        <Dice3DTray breakdown={ultimoBreakdown} rolling={rolling} color={colorePerNickname(nickname)} />
+        {easterEgg ? (
+          <div className="easter-egg-pig">🐖</div>
+        ) : (
+          <Dice3DTray breakdown={ultimoBreakdown} rolling={rolling} color={colorePerNickname(nickname)} />
+        )}
 
         <div className="dice-type-selector">
           {TIPI_DADO.map((tipo) => (
