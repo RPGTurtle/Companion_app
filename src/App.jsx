@@ -743,6 +743,7 @@ function MediaPlayer({ tipo, url }) {
   const [volume, setVolume] = useVolumeLocale()
   const audioRef = useRef(null)
   const iframeRef = useRef(null)
+  const [autoplayBloccato, setAutoplayBloccato] = useState(false)
 
   useEffect(() => {
     if (audioRef.current) audioRef.current.volume = volume / 100
@@ -756,6 +757,21 @@ function MediaPlayer({ tipo, url }) {
     )
   }, [volume, tipo])
 
+  // Per l'mp3 il tag <audio autoPlay> non basta sempre in tutti i browser: tentiamo
+  // anche un avvio esplicito via JS, e se viene comunque bloccato lo segnaliamo.
+  useEffect(() => {
+    if (tipo !== 'mp3' || !audioRef.current) return
+    const tentativo = audioRef.current.play()
+    if (tentativo?.catch) {
+      tentativo.catch(() => setAutoplayBloccato(true))
+    }
+  }, [tipo, url])
+
+  function avviaManualmente() {
+    audioRef.current?.play()
+    setAutoplayBloccato(false)
+  }
+
   if (tipo === 'youtube') {
     const match = url.match(/(?:youtube\.com\/watch\?v=|youtu\.be\/|youtube\.com\/embed\/)([a-zA-Z0-9_-]{6,})/)
     const id = match ? match[1] : null
@@ -767,7 +783,7 @@ function MediaPlayer({ tipo, url }) {
           ref={iframeRef}
           className="youtube-frame"
           width="100%"
-          src={`https://www.youtube.com/embed/${id}?enablejsapi=1`}
+          src={`https://www.youtube.com/embed/${id}?enablejsapi=1&autoplay=1&loop=1&playlist=${id}`}
           title="Musica della stanza"
           frameBorder="0"
           allow="autoplay; encrypted-media"
@@ -792,14 +808,14 @@ function MediaPlayer({ tipo, url }) {
       <div className="media-player">
         <p className="media-player-label">🎵 Musica impostata dal GM</p>
         <iframe
-          src={`https://open.spotify.com/embed/${categoria}/${id}`}
+          src={`https://open.spotify.com/embed/${categoria}/${id}?autoplay=1`}
           width="100%"
           height="80"
           frameBorder="0"
-          allow="encrypted-media"
+          allow="autoplay; encrypted-media"
           title="Musica della stanza"
         />
-        <p className="volume-hint">Il volume si regola direttamente nel player Spotify qui sopra.</p>
+        <p className="volume-hint">Volume e loop si regolano direttamente nel player Spotify qui sopra (Spotify non permette di controllarli dall'esterno).</p>
       </div>
     )
   }
@@ -808,8 +824,13 @@ function MediaPlayer({ tipo, url }) {
     return (
       <div className="media-player">
         <p className="media-player-label">🎵 Musica impostata dal GM</p>
-        <audio ref={audioRef} controls src={url} style={{ width: '100%' }} />
+        <audio ref={audioRef} controls autoPlay loop src={url} style={{ width: '100%' }} />
         <ControlloVolume volume={volume} onChange={setVolume} />
+        {autoplayBloccato && (
+          <button className="btn-ghost autoplay-fallback-btn" onClick={avviaManualmente}>
+            ▶️ Il browser ha bloccato l'avvio automatico — tocca per avviare
+          </button>
+        )}
       </div>
     )
   }

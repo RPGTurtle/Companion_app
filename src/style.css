@@ -615,6 +615,14 @@ button:focus-visible, input:focus-visible {
   font-style: italic;
 }
 
+.autoplay-fallback-btn {
+  margin-top: 10px;
+  width: 100%;
+  font-size: 0.8rem;
+  border-color: var(--gold);
+  color: var(--gold);
+}
+
 /* --- Orologi/countdown --- */
 .gm-select {
   background: var(--felt-deep);
