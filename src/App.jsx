@@ -176,6 +176,8 @@ function Room({ roomCode }) {
   const [nuovaTagliaOrologio, setNuovaTagliaOrologio] = useState('')
   const [videoAperto, setVideoAperto] = useState(false)
   const [easterEgg, setEasterEgg] = useState(false)
+  const [tiroNascosto, setTiroNascosto] = useState(false)
+  const [tiriNascosti, setTiriNascosti] = useState([])
   const listEndRef = useRef(null)
 
   useEffect(() => {
@@ -275,6 +277,8 @@ function Room({ roomCode }) {
     if (rolling) return
     setErrore(null)
 
+    const nascosto = isGM && tiroNascosto
+
     // 🐖 easter egg nascosto: nessun pulsante, bisogna sapere la parola magica
     if (espressione.trim().toLowerCase() === 'porco') {
       setRolling(true)
@@ -282,15 +286,22 @@ function Room({ roomCode }) {
       setTimeout(async () => {
         setRolling(false)
         setEasterEgg(true)
-        await supabase.from('rolls').insert({
-          room_code: roomCode,
-          nickname,
-          results: [],
-          total: 0,
-          notation: '🐖',
-          breakdown: [],
-          modifier: 0,
-        })
+        if (nascosto) {
+          setTiriNascosti((prev) => [
+            { id: Date.now(), notation: '🐖', breakdown: [], total: 0, created_at: new Date().toISOString() },
+            ...prev,
+          ].slice(0, 30))
+        } else {
+          await supabase.from('rolls').insert({
+            room_code: roomCode,
+            nickname,
+            results: [],
+            total: 0,
+            notation: '🐖',
+            breakdown: [],
+            modifier: 0,
+          })
+        }
         setTimeout(() => setEasterEgg(false), 2500)
       }, 500)
       return
@@ -311,6 +322,15 @@ function Room({ roomCode }) {
     setTimeout(async () => {
       setRolling(false)
       const notazione = formattaNotazione(esito.breakdown, esito.modificatoreFisso)
+
+      if (nascosto) {
+        setTiriNascosti((prev) => [
+          { id: Date.now(), notation: notazione, breakdown: esito.breakdown, total: esito.totale, created_at: new Date().toISOString() },
+          ...prev,
+        ].slice(0, 30))
+        return
+      }
+
       await supabase.from('rolls').insert({
         room_code: roomCode,
         nickname,
@@ -671,11 +691,42 @@ function Room({ roomCode }) {
           />
           {errore && <p className="expression-error">{errore}</p>}
 
-          <button className="btn-primary btn-roll" onClick={lancia} disabled={rolling || !espressione.trim()}>
-            {rolling ? 'Lancio…' : espressione.trim() ? `Lancia ${espressione}` : 'Lancia'}
+          {isGM && (
+            <label className="tiro-nascosto-toggle">
+              <input
+                type="checkbox"
+                checked={tiroNascosto}
+                onChange={(e) => setTiroNascosto(e.target.checked)}
+              />
+              🙈 Tiro nascosto (solo tu lo vedi)
+            </label>
+          )}
+
+          <button
+            className={`btn-primary btn-roll ${tiroNascosto ? 'btn-roll-nascosto' : ''}`}
+            onClick={lancia}
+            disabled={rolling || !espressione.trim()}
+          >
+            {rolling ? 'Lancio…' : espressione.trim() ? `Lancia ${espressione}${tiroNascosto ? ' 🙈' : ''}` : 'Lancia'}
           </button>
         </div>
       </div>
+
+      {isGM && tiriNascosti.length > 0 && (
+        <div className="storico storico-nascosto">
+          <h3>🙈 Tiri nascosti (visibili solo a te)</h3>
+          <ul className="storico-list">
+            {tiriNascosti.map((t) => (
+              <li key={t.id} className="storico-item storico-item-nascosto">
+                <span className="storico-nome">{t.notation}</span>
+                <span className="storico-dadi">{formattaDettaglioTiro(t)}</span>
+                <span className="storico-totale">{t.total}</span>
+              </li>
+            ))}
+          </ul>
+          <p className="gm-hint">Questi tiri non sono mai stati inviati agli altri giocatori e si perdono se ricarichi la pagina.</p>
+        </div>
+      )}
 
       <div className="storico">
         <h3>Cronologia tiri</h3>

@@ -366,6 +366,39 @@ button:focus-visible, input:focus-visible {
   font-size: 1.05rem;
 }
 
+.btn-roll-nascosto {
+  background: #5a3d1a;
+}
+.btn-roll-nascosto:hover {
+  background: #6b4a20;
+}
+
+.tiro-nascosto-toggle {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.8rem;
+  color: var(--ivory-dim);
+  cursor: pointer;
+  align-self: center;
+}
+
+.tiro-nascosto-toggle input {
+  width: 16px;
+  height: 16px;
+  accent-color: var(--gold);
+  cursor: pointer;
+}
+
+.storico-nascosto h3 {
+  color: var(--gold);
+}
+
+.storico-item-nascosto {
+  border-left-color: var(--gold) !important;
+  background: rgba(201, 162, 39, 0.06);
+}
+
 /* --- Storico --- */
 .storico h3 {
   font-size: 1rem;
