@@ -178,6 +178,11 @@ function Room({ roomCode }) {
   const [easterEgg, setEasterEgg] = useState(false)
   const [tiroNascosto, setTiroNascosto] = useState(false)
   const [tiriNascosti, setTiriNascosti] = useState([])
+  const [chatAperta, setChatAperta] = useState(false)
+  const [messaggi, setMessaggi] = useState([])
+  const [testoMessaggio, setTestoMessaggio] = useState('')
+  const [destinatario, setDestinatario] = useState('') // '' = chat pubblica, altrimenti nickname
+  const chatEndRef = useRef(null)
   const listEndRef = useRef(null)
 
   useEffect(() => {
@@ -216,6 +221,18 @@ function Room({ roomCode }) {
     }
     caricaOrologi()
 
+    async function caricaMessaggi() {
+      const { data } = await supabase
+        .from('room_messages')
+        .select('*')
+        .eq('room_code', roomCode)
+        .or(`recipient.is.null,recipient.eq.${nickname},sender.eq.${nickname}`)
+        .order('created_at', { ascending: true })
+        .limit(200)
+      if (mounted && data) setMessaggi(data)
+    }
+    caricaMessaggi()
+
     const channel = supabase
       .channel(`room:${roomCode}`)
       .on(
@@ -253,6 +270,16 @@ function Room({ roomCode }) {
           setOrologi((prev) => prev.filter((o) => o.id !== payload.old.id))
         }
       )
+      .on(
+        'postgres_changes',
+        { event: 'INSERT', schema: 'public', table: 'room_messages', filter: `room_code=eq.${roomCode}` },
+        (payload) => {
+          const m = payload.new
+          // Filtro lato client: mostra solo i messaggi pubblici o quelli che mi riguardano
+          const miRiguarda = !m.recipient || m.recipient === nickname || m.sender === nickname
+          if (miRiguarda) setMessaggi((prev) => [...prev, m])
+        }
+      )
       .subscribe()
 
     return () => {
@@ -264,6 +291,33 @@ function Room({ roomCode }) {
   useEffect(() => {
     listEndRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [tiri])
+
+  useEffect(() => {
+    if (chatAperta) chatEndRef.current?.scrollIntoView({ behavior: 'smooth' })
+  }, [messaggi, chatAperta])
+
+  async function inviaMessaggio() {
+    const testo = testoMessaggio.trim()
+    if (!testo) return
+    setTestoMessaggio('')
+    await supabase.from('room_messages').insert({
+      room_code: roomCode,
+      sender: nickname,
+      recipient: destinatario || null,
+      content: testo,
+    })
+  }
+
+  // Nickname visti finora nella stanza (dai tiri e dai messaggi), per scegliere il destinatario del DM
+  const giocatoriVisti = useMemo(() => {
+    const nomi = new Set()
+    tiri.forEach((t) => { if (t.nickname !== nickname) nomi.add(t.nickname) })
+    messaggi.forEach((m) => {
+      if (m.sender !== nickname) nomi.add(m.sender)
+      if (m.recipient && m.recipient !== nickname) nomi.add(m.recipient)
+    })
+    return Array.from(nomi)
+  }, [tiri, messaggi, nickname])
 
   function aggiungiDado(sides) {
     setEspressione((prev) => {
@@ -481,6 +535,9 @@ function Room({ roomCode }) {
             </p>
           </div>
           <div className="room-header-actions">
+            <button className="btn-ghost" onClick={() => setChatAperta((v) => !v)}>
+              {chatAperta ? 'Chiudi chat' : '💬 Chat'}
+            </button>
             <button className="btn-ghost" onClick={() => setVideoAperto((v) => !v)}>
               {videoAperto ? 'Chiudi video' : '🎥 Video/Audio'}
             </button>
@@ -494,6 +551,58 @@ function Room({ roomCode }) {
             </button>
           </div>
         </header>
+
+        {chatAperta && (
+          <div className="chat-panel">
+            <div className="chat-header">
+              <label className="chat-dest-label">
+                A:
+                <select
+                  className="gm-select chat-dest-select"
+                  value={destinatario}
+                  onChange={(e) => setDestinatario(e.target.value)}
+                >
+                  <option value="">💬 Tutta la stanza</option>
+                  {giocatoriVisti.map((nome) => (
+                    <option key={nome} value={nome}>🔒 {nome} (privato)</option>
+                  ))}
+                </select>
+              </label>
+            </div>
+
+            <div className="chat-messages">
+              {messaggi.length === 0 && <p className="storico-empty">Nessun messaggio ancora.</p>}
+              {messaggi.map((m) => {
+                const isDM = !!m.recipient
+                const mioMessaggio = m.sender === nickname
+                return (
+                  <div key={m.id ?? m.created_at} className={`chat-bubble ${mioMessaggio ? 'chat-bubble-mio' : ''} ${isDM ? 'chat-bubble-dm' : ''}`}>
+                    <span className="chat-bubble-meta">
+                      {isDM && '🔒 '}
+                      <strong style={{ color: colorePerNickname(m.sender) }}>{m.sender}</strong>
+                      {isDM && (mioMessaggio ? ` → ${m.recipient}` : ' → te')}
+                    </span>
+                    <span className="chat-bubble-testo">{m.content}</span>
+                  </div>
+                )
+              })}
+              <div ref={chatEndRef} />
+            </div>
+
+            <div className="chat-input-row">
+              <input
+                type="text"
+                className="expression-input chat-input"
+                placeholder={destinatario ? `Messaggio privato a ${destinatario}…` : 'Scrivi alla stanza…'}
+                value={testoMessaggio}
+                onChange={(e) => setTestoMessaggio(e.target.value)}
+                onKeyDown={(e) => { if (e.key === 'Enter') inviaMessaggio() }}
+                maxLength={500}
+              />
+              <button className="btn-secondary" onClick={inviaMessaggio}>Invia</button>
+            </div>
+          </div>
+        )}
 
         {videoAperto && <VideoChiamata roomCode={roomCode} nickname={nickname} />}
 
