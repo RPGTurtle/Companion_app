@@ -960,6 +960,24 @@ button:focus-visible, input:focus-visible {
   background: rgba(15, 29, 21, 0.4);
 }
 
+.grid-battaglia-container-disegno {
+  cursor: crosshair;
+}
+
+.grid-disegno-layer {
+  position: absolute;
+  top: 0;
+  left: 0;
+  pointer-events: none;
+  z-index: 0;
+}
+
+.gm-mode-attiva {
+  background: var(--gold) !important;
+  color: var(--felt-deep) !important;
+  border-color: var(--gold) !important;
+}
+
 .grid-cella {
   border: 1px solid rgba(232, 220, 196, 0.08);
   box-sizing: border-box;

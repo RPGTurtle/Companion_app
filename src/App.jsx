@@ -181,6 +181,8 @@ function Room({ roomCode }) {
   const [colonneInput, setColonneInput] = useState('')
   const [nuovaEtichettaPedina, setNuovaEtichettaPedina] = useState('')
   const [nuovoTipoPedina, setNuovoTipoPedina] = useState('giocatore')
+  const [modalitaGriglia, setModalitaGriglia] = useState('pedine') // 'pedine' | 'disegno'
+  const [coloreDisegno, setColoreDisegno] = useState('#C9A227')
   const [easterEgg, setEasterEgg] = useState(false)
   const [tiroNascosto, setTiroNascosto] = useState(false)
   const [tiriNascosti, setTiriNascosti] = useState([])
@@ -656,6 +658,15 @@ function Room({ roomCode }) {
     await supabase.from('room_tokens').update({ riga, colonna }).eq('id', id)
   }
 
+  async function salvaDisegno(nuovoDisegno) {
+    setGriglia((prev) => (prev ? { ...prev, disegno: nuovoDisegno } : prev))
+    await supabase.from('room_grid').update({ disegno: nuovoDisegno }).eq('room_code', roomCode)
+  }
+
+  async function cancellaDisegno() {
+    await salvaDisegno([])
+  }
+
   if (!nickname) {
     return <NicknameGate roomCode={roomCode} onJoin={setNickname} />
   }
@@ -975,7 +986,44 @@ function Room({ roomCode }) {
                     )}
                     <button className="btn-secondary" onClick={aggiungiPedina}>Aggiungi</button>
                   </div>
-                  <p className="gm-hint">Trascina le pedine direttamente sulla griglia qui sotto per spostarle. Tocca la ✕ su una pedina per eliminarla.</p>
+
+                  <div className="gm-inline-form" style={{ marginTop: 10 }}>
+                    <button
+                      type="button"
+                      className={`btn-secondary ${modalitaGriglia === 'pedine' ? 'gm-mode-attiva' : ''}`}
+                      onClick={() => setModalitaGriglia('pedine')}
+                    >
+                      🎯 Sposta pedine
+                    </button>
+                    <button
+                      type="button"
+                      className={`btn-secondary ${modalitaGriglia === 'disegno' ? 'gm-mode-attiva' : ''}`}
+                      onClick={() => setModalitaGriglia('disegno')}
+                    >
+                      ✏️ Disegna
+                    </button>
+                  </div>
+
+                  {modalitaGriglia === 'disegno' && (
+                    <div className="gm-inline-form" style={{ marginTop: 8 }}>
+                      {['#C9A227', '#8B3A3A', '#E8DCC4', '#2E8B57'].map((c) => (
+                        <button
+                          key={c}
+                          type="button"
+                          className="gm-swatch"
+                          style={{ background: c, border: coloreDisegno === c ? '2px solid white' : '2px solid rgba(232,220,196,0.3)' }}
+                          onClick={() => setColoreDisegno(c)}
+                        />
+                      ))}
+                      <button className="btn-ghost gm-remove-btn" onClick={cancellaDisegno}>Cancella disegno</button>
+                    </div>
+                  )}
+
+                  <p className="gm-hint">
+                    {modalitaGriglia === 'pedine'
+                      ? 'Trascina le pedine direttamente sulla griglia per spostarle. Tocca la ✕ su una pedina per eliminarla.'
+                      : 'Disegna liberamente sulla griglia (muri, percorsi, aree) — visibile a tutti, sotto le pedine.'}
+                  </p>
                   <button className="btn-ghost gm-remove-btn" onClick={eliminaGriglia}>Rimuovi griglia</button>
                 </>
               )}
@@ -991,6 +1039,9 @@ function Room({ roomCode }) {
             onSposta={spostaPedina}
             onElimina={eliminaPedina}
             colorePannelli={colorePannelli}
+            modalitaDisegno={isGM && modalitaGriglia === 'disegno'}
+            coloreDisegno={coloreDisegno}
+            onDisegnaFine={salvaDisegno}
           />
         )}
 
@@ -1343,15 +1394,22 @@ const ICONE_TIPO_PEDINA = {
   altro: '❓',
 }
 
-function GrigliaBattaglia({ griglia, pedine, isGM, onSposta, onElimina, colorePannelli }) {
+function GrigliaBattaglia({ griglia, pedine, isGM, onSposta, onElimina, colorePannelli, modalitaDisegno, coloreDisegno, onDisegnaFine }) {
   const containerRef = useRef(null)
   const [trascinando, setTrascinando] = useState(null) // { id, left, top }
+  const [trattoInCorso, setTrattoInCorso] = useState(null) // array di punti {x,y} mentre si disegna
 
   const larghezza = griglia.colonne * CELLA_PX
   const altezza = griglia.righe * CELLA_PX
+  const disegno = griglia.disegno || []
+
+  function puntoRelativo(e) {
+    const rect = containerRef.current.getBoundingClientRect()
+    return { x: e.clientX - rect.left, y: e.clientY - rect.top }
+  }
 
   function iniziaTrascinamento(e, pedina) {
-    if (!isGM) return
+    if (!isGM || modalitaDisegno) return
     e.currentTarget.setPointerCapture(e.pointerId)
     setTrascinando({ id: pedina.id, left: pedina.colonna * CELLA_PX, top: pedina.riga * CELLA_PX })
   }
@@ -1375,11 +1433,43 @@ function GrigliaBattaglia({ griglia, pedine, isGM, onSposta, onElimina, colorePa
     setTrascinando(null)
   }
 
+  // --- Disegno libero (solo GM, in modalità "disegna") ---
+  function iniziaTratto(e) {
+    if (!modalitaDisegno || !containerRef.current) return
+    containerRef.current.setPointerCapture(e.pointerId)
+    setTrattoInCorso([puntoRelativo(e)])
+  }
+
+  function continuaTratto(e) {
+    if (!trattoInCorso) return
+    setTrattoInCorso((prev) => [...prev, puntoRelativo(e)])
+  }
+
+  function fineTratto() {
+    if (!trattoInCorso) return
+    if (trattoInCorso.length > 1) {
+      onDisegnaFine([...disegno, { colore: coloreDisegno, punti: trattoInCorso }])
+    }
+    setTrattoInCorso(null)
+  }
+
+  function gestisciPointerDown(e) {
+    if (modalitaDisegno) iniziaTratto(e)
+  }
+  function gestisciPointerMove(e) {
+    if (modalitaDisegno) continuaTratto(e)
+    else durante(e)
+  }
+  function gestisciPointerUp(e) {
+    if (modalitaDisegno) fineTratto(e)
+    else fine(e)
+  }
+
   return (
     <div className="grid-battaglia-wrap">
       <div
         ref={containerRef}
-        className="grid-battaglia-container"
+        className={`grid-battaglia-container ${modalitaDisegno ? 'grid-battaglia-container-disegno' : ''}`}
         style={{
           width: larghezza,
           height: altezza,
@@ -1387,12 +1477,37 @@ function GrigliaBattaglia({ griglia, pedine, isGM, onSposta, onElimina, colorePa
           gridTemplateRows: `repeat(${griglia.righe}, ${CELLA_PX}px)`,
           background: colorePannelli || undefined,
         }}
-        onPointerMove={durante}
-        onPointerUp={fine}
+        onPointerDown={gestisciPointerDown}
+        onPointerMove={gestisciPointerMove}
+        onPointerUp={gestisciPointerUp}
       >
         {Array.from({ length: griglia.righe * griglia.colonne }).map((_, i) => (
           <div key={i} className="grid-cella" />
         ))}
+
+        <svg className="grid-disegno-layer" width={larghezza} height={altezza}>
+          {disegno.map((tratto, i) => (
+            <polyline
+              key={i}
+              points={tratto.punti.map((p) => `${p.x},${p.y}`).join(' ')}
+              stroke={tratto.colore}
+              strokeWidth="3.5"
+              fill="none"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            />
+          ))}
+          {trattoInCorso && (
+            <polyline
+              points={trattoInCorso.map((p) => `${p.x},${p.y}`).join(' ')}
+              stroke={coloreDisegno}
+              strokeWidth="3.5"
+              fill="none"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            />
+          )}
+        </svg>
 
         {pedine.map((p) => {
           const inTrascinamento = trascinando?.id === p.id
@@ -1403,13 +1518,13 @@ function GrigliaBattaglia({ griglia, pedine, isGM, onSposta, onElimina, colorePa
           return (
             <div
               key={p.id}
-              className={`grid-pedina ${inTrascinamento ? 'grid-pedina-trascinando' : ''} ${isGM ? 'grid-pedina-trascinabile' : ''}`}
+              className={`grid-pedina ${inTrascinamento ? 'grid-pedina-trascinando' : ''} ${isGM && !modalitaDisegno ? 'grid-pedina-trascinabile' : ''}`}
               style={{ left, top, background: colore }}
               onPointerDown={(e) => iniziaTrascinamento(e, p)}
               title={p.etichetta}
             >
               <span className="grid-pedina-etichetta">{testoBreve}</span>
-              {isGM && (
+              {isGM && !modalitaDisegno && (
                 <button
                   className="grid-pedina-elimina"
                   onPointerDown={(e) => e.stopPropagation()}
@@ -1425,7 +1540,7 @@ function GrigliaBattaglia({ griglia, pedine, isGM, onSposta, onElimina, colorePa
       </div>
       <p className="gm-hint">
         {ICONE_TIPO_PEDINA.giocatore} giocatore · {ICONE_TIPO_PEDINA.nemico} nemico · {ICONE_TIPO_PEDINA.altro} altro
-        {!isGM && ' — solo il GM può spostare le pedine.'}
+        {!isGM && ' — solo il GM può modificare la griglia.'}
       </p>
     </div>
   )
