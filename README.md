@@ -134,6 +134,32 @@ Da questo momento il pulsante "🎥 Video/Audio" nella stanza userà JaaS, senza
 
 **Limite onesto**: 2.000 minuti-partecipante/mese bastano per qualche sessione di gioco al mese con un gruppo di 4-5 persone; se giocate spesso o siete in tanti, la quota gratuita può esaurirsi prima della fine del mese — in quel caso Daily richiede un piano a pagamento per continuare quel mese.
 
+## Aggiornamento: chat di stanza e messaggi diretti
+
+Se hai già configurato Supabase in precedenza, esegui anche `supabase-migration-chat.sql` nell'SQL Editor. Aggiunge la tabella `room_messages`.
+
+Ogni giocatore trova un pulsante **"💬 Chat"** nell'intestazione (non solo il GM). Apre un pannello con:
+- Un menu a tendina per scegliere il destinatario: **"Tutta la stanza"** (chat pubblica, la vedono tutti) oppure un giocatore specifico già visto nella stanza (messaggio diretto, contrassegnato con 🔒)
+- I messaggi si aggiornano in tempo reale, come i tiri di dado
+
+**Limite onesto sulla privacy dei DM**: l'app non ha account/password — tutti condividono lo stesso accesso al database. I messaggi diretti sono privati *nell'interfaccia* (nessun giocatore li vede scorrendo la chat, il filtro è applicato sia lato query iniziale sia sui nuovi messaggi in arrivo), ma non sono cifrati: non è messaggistica a prova di intrusione tecnica, va bene per un tavolo di amici con fiducia reciproca, non per segreti sensibili.
+
+### Invio immagini in chat
+
+Esegui anche `supabase-migration-chat-immagini.sql` (dopo `supabase-migration-chat.sql`) per abilitare l'invio di immagini — riusa lo stesso bucket Storage già configurato per lo sfondo del GM, nessuna nuova configurazione richiesta. Limite: 8 MB per immagine.
+
+## Aggiornamento: griglia di battaglia
+
+Esegui `supabase-migration-griglia.sql` nell'SQL Editor. Aggiunge le tabelle `room_grid` e `room_tokens`.
+
+Nel pannello GM, sezione **"Griglia di battaglia"**: imposta righe/colonne (fino a 30×30) e crea la griglia — appare subito a tutti i giocatori nella stanza. Il GM può poi aggiungere pedine (etichetta breve, es. "PG1", più tipo 👤 giocatore / 👹 nemico / ❓ altro, ognuno con un colore diverso) e trascinarle direttamente sulla griglia condivisa per spostarle — funziona sia con mouse sia con il dito su schermo touch. Solo il GM può creare, spostare o eliminare pedine e griglia; tutti gli altri la vedono in tempo reale, in sola lettura.
+
+## Aggiornamento: disegno libero sulla griglia
+
+Esegui `supabase-migration-disegno-griglia.sql` nell'SQL Editor (dopo `supabase-migration-griglia.sql`). Aggiunge la colonna `disegno` alla tabella `room_grid`.
+
+Nel pannello GM, sotto i controlli della griglia, sono comparsi due pulsanti modalità: **🎯 Sposta pedine** (comportamento di prima) e **✏️ Disegna**. In modalità disegno, il GM può tracciare linee libere (mouse o dito) direttamente sulla griglia — utili per muri, percorsi, aree pericolose — scegliendo tra 4 colori. Il disegno appare a tutti in tempo reale, **sotto le pedine** (che restano sempre visibili sopra i tratti). Un pulsante "Cancella disegno" rimuove tutti i tratti in un colpo solo. Mentre la modalità disegno è attiva, le pedine non sono trascinabili (evita di spostarle per sbaglio mentre si disegna); si torna a "🎯 Sposta pedine" per riprendere a muoverle.
+
 ## Come funziona
 
 - Chi apre il sito clicca **"Crea una nuova stanza"** → viene generato un codice tipo `LUPO-4821` e un link `tuosito.netlify.app/r/LUPO-4821`
