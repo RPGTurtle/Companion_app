@@ -181,6 +181,7 @@ function Room({ roomCode }) {
   const [chatAperta, setChatAperta] = useState(false)
   const [messaggi, setMessaggi] = useState([])
   const [testoMessaggio, setTestoMessaggio] = useState('')
+  const [caricamentoImmagineChat, setCaricamentoImmagineChat] = useState(false)
   const [destinatario, setDestinatario] = useState('') // '' = chat pubblica, altrimenti nickname
   const chatEndRef = useRef(null)
   const listEndRef = useRef(null)
@@ -306,6 +307,41 @@ function Room({ roomCode }) {
       recipient: destinatario || null,
       content: testo,
     })
+  }
+
+  async function inviaImmagineChat(file) {
+    if (!file) return
+    const limiteMB = 8
+    if (file.size > limiteMB * 1024 * 1024) {
+      setErroreGM(null)
+      alert(`Immagine troppo grande (max ${limiteMB} MB)`)
+      return
+    }
+
+    setCaricamentoImmagineChat(true)
+    const percorso = `${roomCode}/chat/${Date.now()}-${file.name.replace(/[^a-zA-Z0-9.\-_]/g, '_')}`
+
+    const { error: erroreUpload } = await supabase.storage
+      .from('room-media')
+      .upload(percorso, file, { upsert: true })
+
+    if (erroreUpload) {
+      setCaricamentoImmagineChat(false)
+      alert(`Errore nel caricamento dell'immagine: ${erroreUpload.message}`)
+      return
+    }
+
+    const { data } = supabase.storage.from('room-media').getPublicUrl(percorso)
+
+    await supabase.from('room_messages').insert({
+      room_code: roomCode,
+      sender: nickname,
+      recipient: destinatario || null,
+      content: testoMessaggio.trim() || null,
+      image_url: data.publicUrl,
+    })
+    setTestoMessaggio('')
+    setCaricamentoImmagineChat(false)
   }
 
   // Nickname visti finora nella stanza (dai tiri e dai messaggi), per scegliere il destinatario del DM
@@ -582,7 +618,12 @@ function Room({ roomCode }) {
                       <strong style={{ color: colorePerNickname(m.sender) }}>{m.sender}</strong>
                       {isDM && (mioMessaggio ? ` → ${m.recipient}` : ' → te')}
                     </span>
-                    <span className="chat-bubble-testo">{m.content}</span>
+                    {m.image_url && (
+                      <a href={m.image_url} target="_blank" rel="noopener noreferrer">
+                        <img src={m.image_url} alt="Immagine condivisa in chat" className="chat-bubble-immagine" />
+                      </a>
+                    )}
+                    {m.content && <span className="chat-bubble-testo">{m.content}</span>}
                   </div>
                 )
               })}
@@ -599,6 +640,16 @@ function Room({ roomCode }) {
                 onKeyDown={(e) => { if (e.key === 'Enter') inviaMessaggio() }}
                 maxLength={500}
               />
+              <label className="chat-image-btn" title="Invia immagine">
+                {caricamentoImmagineChat ? '…' : '📷'}
+                <input
+                  type="file"
+                  accept="image/*"
+                  hidden
+                  disabled={caricamentoImmagineChat}
+                  onChange={(e) => { if (e.target.files[0]) inviaImmagineChat(e.target.files[0]); e.target.value = '' }}
+                />
+              </label>
               <button className="btn-secondary" onClick={inviaMessaggio}>Invia</button>
             </div>
           </div>
