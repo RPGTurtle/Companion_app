@@ -175,6 +175,12 @@ function Room({ roomCode }) {
   const [nuovoNomeOrologio, setNuovoNomeOrologio] = useState('')
   const [nuovaTagliaOrologio, setNuovaTagliaOrologio] = useState('')
   const [videoAperto, setVideoAperto] = useState(false)
+  const [griglia, setGriglia] = useState(null)
+  const [pedine, setPedine] = useState([])
+  const [righeInput, setRigheInput] = useState('')
+  const [colonneInput, setColonneInput] = useState('')
+  const [nuovaEtichettaPedina, setNuovaEtichettaPedina] = useState('')
+  const [nuovoTipoPedina, setNuovoTipoPedina] = useState('giocatore')
   const [easterEgg, setEasterEgg] = useState(false)
   const [tiroNascosto, setTiroNascosto] = useState(false)
   const [tiriNascosti, setTiriNascosti] = useState([])
@@ -234,6 +240,26 @@ function Room({ roomCode }) {
     }
     caricaMessaggi()
 
+    async function caricaGriglia() {
+      const { data } = await supabase
+        .from('room_grid')
+        .select('*')
+        .eq('room_code', roomCode)
+        .maybeSingle()
+      if (mounted && data) setGriglia(data)
+    }
+    caricaGriglia()
+
+    async function caricaPedine() {
+      const { data } = await supabase
+        .from('room_tokens')
+        .select('*')
+        .eq('room_code', roomCode)
+        .order('created_at', { ascending: true })
+      if (mounted && data) setPedine(data)
+    }
+    caricaPedine()
+
     const channel = supabase
       .channel(`room:${roomCode}`)
       .on(
@@ -279,6 +305,34 @@ function Room({ roomCode }) {
           // Filtro lato client: mostra solo i messaggi pubblici o quelli che mi riguardano
           const miRiguarda = !m.recipient || m.recipient === nickname || m.sender === nickname
           if (miRiguarda) setMessaggi((prev) => [...prev, m])
+        }
+      )
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'room_grid', filter: `room_code=eq.${roomCode}` },
+        (payload) => {
+          if (payload.new) setGriglia(payload.new)
+        }
+      )
+      .on(
+        'postgres_changes',
+        { event: 'INSERT', schema: 'public', table: 'room_tokens', filter: `room_code=eq.${roomCode}` },
+        (payload) => {
+          setPedine((prev) => [...prev, payload.new])
+        }
+      )
+      .on(
+        'postgres_changes',
+        { event: 'UPDATE', schema: 'public', table: 'room_tokens', filter: `room_code=eq.${roomCode}` },
+        (payload) => {
+          setPedine((prev) => prev.map((p) => (p.id === payload.new.id ? payload.new : p)))
+        }
+      )
+      .on(
+        'postgres_changes',
+        { event: 'DELETE', schema: 'public', table: 'room_tokens', filter: `room_code=eq.${roomCode}` },
+        (payload) => {
+          setPedine((prev) => prev.filter((p) => p.id !== payload.old.id))
         }
       )
       .subscribe()
@@ -354,6 +408,9 @@ function Room({ roomCode }) {
     })
     return Array.from(nomi)
   }, [tiri, messaggi, nickname])
+
+  // Include anche te stesso, utile per piazzare la propria pedina sulla griglia
+  const tuttiIGiocatori = useMemo(() => [nickname, ...giocatoriVisti], [nickname, giocatoriVisti])
 
   function aggiungiDado(sides) {
     setEspressione((prev) => {
@@ -545,6 +602,58 @@ function Room({ roomCode }) {
     setOrologi((prev) => prev.filter((o) => o.id !== id))
     const { error } = await supabase.from('room_clocks').delete().eq('id', id)
     if (error) setErroreGM(`Errore nell'eliminazione: ${error.message}`)
+  }
+
+  // --- Gestione griglia di battaglia (solo GM) ---
+  async function creaGriglia() {
+    const righe = Math.min(30, Math.max(2, parseInt(righeInput, 10) || 8))
+    const colonne = Math.min(30, Math.max(2, parseInt(colonneInput, 10) || 8))
+    const { data, error } = await supabase
+      .from('room_grid')
+      .upsert({ room_code: roomCode, righe, colonne }, { onConflict: 'room_code' })
+      .select()
+      .single()
+    if (error) {
+      setErroreGM(`Errore nella creazione della griglia: ${error.message}`)
+      return
+    }
+    setGriglia(data)
+  }
+
+  async function eliminaGriglia() {
+    await supabase.from('room_grid').delete().eq('room_code', roomCode)
+    await supabase.from('room_tokens').delete().eq('room_code', roomCode)
+    setGriglia(null)
+    setPedine([])
+  }
+
+  async function aggiungiPedina() {
+    const etichetta = nuovoTipoPedina === 'giocatore'
+      ? nuovaEtichettaPedina.trim()
+      : nuovaEtichettaPedina.trim().slice(0, 4)
+    if (!etichetta || !griglia) return
+    const posizione = pedine.length
+    const riga = posizione % griglia.righe
+    const colonna = Math.floor(posizione / griglia.righe) % griglia.colonne
+    const { error } = await supabase.from('room_tokens').insert({
+      room_code: roomCode,
+      etichetta,
+      tipo: nuovoTipoPedina,
+      riga,
+      colonna,
+    })
+    if (error) setErroreGM(`Errore nell'aggiunta della pedina: ${error.message}`)
+    setNuovaEtichettaPedina('')
+  }
+
+  async function eliminaPedina(id) {
+    setPedine((prev) => prev.filter((p) => p.id !== id))
+    await supabase.from('room_tokens').delete().eq('id', id)
+  }
+
+  async function spostaPedina(id, riga, colonna) {
+    setPedine((prev) => prev.map((p) => (p.id === id ? { ...p, riga, colonna } : p)))
+    await supabase.from('room_tokens').update({ riga, colonna }).eq('id', id)
   }
 
   if (!nickname) {
@@ -799,7 +908,90 @@ function Room({ roomCode }) {
                 </div>
               )}
             </div>
+
+            <div className="gm-section">
+              <label>Griglia di battaglia</label>
+              <div className="gm-inline-form">
+                <input
+                  type="number"
+                  className="gm-select gm-taglia-input"
+                  min="2"
+                  max="30"
+                  placeholder="righe"
+                  value={righeInput}
+                  onChange={(e) => setRigheInput(e.target.value)}
+                />
+                <input
+                  type="number"
+                  className="gm-select gm-taglia-input"
+                  min="2"
+                  max="30"
+                  placeholder="colonne"
+                  value={colonneInput}
+                  onChange={(e) => setColonneInput(e.target.value)}
+                />
+                <button className="btn-secondary" onClick={creaGriglia}>
+                  {griglia ? 'Ridimensiona' : 'Crea griglia'}
+                </button>
+              </div>
+
+              {griglia && (
+                <>
+                  <div className="gm-inline-form" style={{ marginTop: 10 }}>
+                    <select
+                      className="gm-select"
+                      value={nuovoTipoPedina}
+                      onChange={(e) => {
+                        setNuovoTipoPedina(e.target.value)
+                        setNuovaEtichettaPedina('')
+                      }}
+                    >
+                      <option value="giocatore">👤 Giocatore</option>
+                      <option value="nemico">👹 Nemico</option>
+                      <option value="altro">❓ Altro</option>
+                    </select>
+
+                    {nuovoTipoPedina === 'giocatore' ? (
+                      <select
+                        className="gm-select"
+                        value={nuovaEtichettaPedina}
+                        onChange={(e) => setNuovaEtichettaPedina(e.target.value)}
+                      >
+                        <option value="">Scegli il giocatore…</option>
+                        {tuttiIGiocatori.map((nome) => (
+                          <option key={nome} value={nome}>{nome}{nome === nickname ? ' (tu)' : ''}</option>
+                        ))}
+                      </select>
+                    ) : (
+                      <input
+                        type="text"
+                        className="expression-input"
+                        placeholder="Etichetta (es. Orco, G1)"
+                        value={nuovaEtichettaPedina}
+                        onChange={(e) => setNuovaEtichettaPedina(e.target.value)}
+                        onKeyDown={(e) => { if (e.key === 'Enter') aggiungiPedina() }}
+                        maxLength={4}
+                      />
+                    )}
+                    <button className="btn-secondary" onClick={aggiungiPedina}>Aggiungi</button>
+                  </div>
+                  <p className="gm-hint">Trascina le pedine direttamente sulla griglia qui sotto per spostarle. Tocca la ✕ su una pedina per eliminarla.</p>
+                  <button className="btn-ghost gm-remove-btn" onClick={eliminaGriglia}>Rimuovi griglia</button>
+                </>
+              )}
+            </div>
           </div>
+        )}
+
+        {griglia && (
+          <GrigliaBattaglia
+            griglia={griglia}
+            pedine={pedine}
+            isGM={isGM}
+            onSposta={spostaPedina}
+            onElimina={eliminaPedina}
+            colorePannelli={colorePannelli}
+          />
         )}
 
         {orologi.length > 0 && (
@@ -1132,6 +1324,108 @@ function VideoChiamata({ roomCode, nickname }) {
       </div>
       <p className="gm-hint">
         Videochiamata tramite Jitsi as a Service (8x8): tutti i giocatori che aprono "🎥 Video/Audio" nella stessa stanza finiscono automaticamente nella stessa chiamata.
+      </p>
+    </div>
+  )
+}
+
+// --- Griglia di battaglia con pedine trascinabili (drag & drop touch-friendly) ---
+const CELLA_PX = 42
+
+const COLORI_TIPO_PEDINA = {
+  giocatore: '#C9A227',
+  nemico: '#8B3A3A',
+  altro: '#6d7a72',
+}
+const ICONE_TIPO_PEDINA = {
+  giocatore: '👤',
+  nemico: '👹',
+  altro: '❓',
+}
+
+function GrigliaBattaglia({ griglia, pedine, isGM, onSposta, onElimina, colorePannelli }) {
+  const containerRef = useRef(null)
+  const [trascinando, setTrascinando] = useState(null) // { id, left, top }
+
+  const larghezza = griglia.colonne * CELLA_PX
+  const altezza = griglia.righe * CELLA_PX
+
+  function iniziaTrascinamento(e, pedina) {
+    if (!isGM) return
+    e.currentTarget.setPointerCapture(e.pointerId)
+    setTrascinando({ id: pedina.id, left: pedina.colonna * CELLA_PX, top: pedina.riga * CELLA_PX })
+  }
+
+  function durante(e) {
+    if (!trascinando || !containerRef.current) return
+    const rect = containerRef.current.getBoundingClientRect()
+    const left = e.clientX - rect.left - CELLA_PX / 2
+    const top = e.clientY - rect.top - CELLA_PX / 2
+    setTrascinando((prev) => (prev ? { ...prev, left, top } : prev))
+  }
+
+  function fine(e) {
+    if (!trascinando || !containerRef.current) return
+    const rect = containerRef.current.getBoundingClientRect()
+    const xRel = e.clientX - rect.left - CELLA_PX / 2
+    const yRel = e.clientY - rect.top - CELLA_PX / 2
+    const colonna = Math.min(griglia.colonne - 1, Math.max(0, Math.round(xRel / CELLA_PX)))
+    const riga = Math.min(griglia.righe - 1, Math.max(0, Math.round(yRel / CELLA_PX)))
+    onSposta(trascinando.id, riga, colonna)
+    setTrascinando(null)
+  }
+
+  return (
+    <div className="grid-battaglia-wrap">
+      <div
+        ref={containerRef}
+        className="grid-battaglia-container"
+        style={{
+          width: larghezza,
+          height: altezza,
+          gridTemplateColumns: `repeat(${griglia.colonne}, ${CELLA_PX}px)`,
+          gridTemplateRows: `repeat(${griglia.righe}, ${CELLA_PX}px)`,
+          background: colorePannelli || undefined,
+        }}
+        onPointerMove={durante}
+        onPointerUp={fine}
+      >
+        {Array.from({ length: griglia.righe * griglia.colonne }).map((_, i) => (
+          <div key={i} className="grid-cella" />
+        ))}
+
+        {pedine.map((p) => {
+          const inTrascinamento = trascinando?.id === p.id
+          const left = inTrascinamento ? trascinando.left : p.colonna * CELLA_PX
+          const top = inTrascinamento ? trascinando.top : p.riga * CELLA_PX
+          const colore = p.tipo === 'giocatore' ? colorePerNickname(p.etichetta) : (COLORI_TIPO_PEDINA[p.tipo] || COLORI_TIPO_PEDINA.altro)
+          const testoBreve = p.tipo === 'giocatore' ? p.etichetta.slice(0, 3).toUpperCase() : p.etichetta
+          return (
+            <div
+              key={p.id}
+              className={`grid-pedina ${inTrascinamento ? 'grid-pedina-trascinando' : ''} ${isGM ? 'grid-pedina-trascinabile' : ''}`}
+              style={{ left, top, background: colore }}
+              onPointerDown={(e) => iniziaTrascinamento(e, p)}
+              title={p.etichetta}
+            >
+              <span className="grid-pedina-etichetta">{testoBreve}</span>
+              {isGM && (
+                <button
+                  className="grid-pedina-elimina"
+                  onPointerDown={(e) => e.stopPropagation()}
+                  onClick={() => onElimina(p.id)}
+                  title="Elimina pedina"
+                >
+                  ✕
+                </button>
+              )}
+            </div>
+          )
+        })}
+      </div>
+      <p className="gm-hint">
+        {ICONE_TIPO_PEDINA.giocatore} giocatore · {ICONE_TIPO_PEDINA.nemico} nemico · {ICONE_TIPO_PEDINA.altro} altro
+        {!isGM && ' — solo il GM può spostare le pedine.'}
       </p>
     </div>
   )
