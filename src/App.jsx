@@ -15,8 +15,21 @@ function generaCodiceStanza() {
   return `${animale}-${numero}`
 }
 
+// Percorso base dell'app: "/" in locale, "/Companion_app/" su GitHub Pages
+const BASE_PATH = import.meta.env.BASE_URL.replace(/\/$/, '')
+
 function getPath() {
-  return window.location.pathname
+  const pathname = window.location.pathname
+
+  if (BASE_PATH && pathname.startsWith(BASE_PATH)) {
+    return pathname.slice(BASE_PATH.length) || '/'
+  }
+
+  return pathname
+}
+
+function roomUrl(code) {
+  return `${BASE_PATH}/r/${code}`
 }
 
 // --- Colore deterministico per giocatore, derivato dal nickname ---
