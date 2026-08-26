@@ -15,8 +15,35 @@ function generaCodiceStanza() {
   return `${animale}-${numero}`
 }
 
+// Trasforma un nome scelto dall'utente in un codice-stanza valido per l'URL
+// (maiuscolo, solo lettere/numeri/trattini). Se dopo la pulizia non resta
+// nulla di utilizzabile, si ricade sul codice generico animale-numero.
+function sanificaNomeStanza(testo) {
+  return testo
+    .trim()
+    .toUpperCase()
+    .replace(/\s+/g, '-')
+    .replace(/[^A-Z0-9-]/g, '')
+    .replace(/-+/g, '-')
+    .replace(/^-|-$/g, '')
+    .slice(0, 40)
+}
+
+// Percorso base dell'app: "/" in locale, "/Companion_app/" su GitHub Pages
+const BASE_PATH = import.meta.env.BASE_URL.replace(/\/$/, '')
+
 function getPath() {
-  return window.location.pathname
+  const pathname = window.location.pathname
+
+  if (BASE_PATH && pathname.startsWith(BASE_PATH)) {
+    return pathname.slice(BASE_PATH.length) || '/'
+  }
+
+  return pathname
+}
+
+function roomUrl(code) {
+  return `${BASE_PATH}/r/${code}`
 }
 
 // --- Colore deterministico per giocatore, derivato dal nickname ---
@@ -70,17 +97,19 @@ function DiceFace2D({ size = 72 }) {
 // --- Schermata iniziale ---
 function Landing() {
   const [joinCode, setJoinCode] = useState('')
+  const [nomeStanzaInput, setNomeStanzaInput] = useState('')
 
   function creaStanza() {
-    const code = generaCodiceStanza()
+    const nomePulito = sanificaNomeStanza(nomeStanzaInput)
+    const code = nomePulito || generaCodiceStanza()
     sessionStorage.setItem(`gm:${code}`, '1')
-    window.location.href = `/r/${code}`
+    window.location.href = roomUrl(code)
   }
 
   function entraStanza(e) {
     e.preventDefault()
     if (joinCode.trim()) {
-      window.location.href = `/r/${joinCode.trim().toUpperCase()}`
+     window.location.href = roomUrl(joinCode.trim().toUpperCase())
     }
   }
 
@@ -95,6 +124,15 @@ function Landing() {
       </div>
 
       <div className="landing-actions">
+        <input
+          type="text"
+          placeholder="Nome della stanza (facoltativo)"
+          value={nomeStanzaInput}
+          onChange={(e) => setNomeStanzaInput(e.target.value)}
+          onKeyDown={(e) => { if (e.key === 'Enter') creaStanza() }}
+          className="join-input"
+          maxLength={40}
+        />
         <button className="btn-primary" onClick={creaStanza}>
           Crea una nuova stanza
         </button>
