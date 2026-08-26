@@ -74,13 +74,13 @@ function Landing() {
   function creaStanza() {
     const code = generaCodiceStanza()
     sessionStorage.setItem(`gm:${code}`, '1')
-    window.location.href = `/r/${code}`
+    window.location.href = roomUrl(code)
   }
 
   function entraStanza(e) {
     e.preventDefault()
     if (joinCode.trim()) {
-      window.location.href = `/r/${joinCode.trim().toUpperCase()}`
+     window.location.href = roomUrl(joinCode.trim().toUpperCase())
     }
   }
 
