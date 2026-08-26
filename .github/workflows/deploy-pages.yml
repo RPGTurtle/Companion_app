@@ -38,8 +38,6 @@ jobs:
           VITE_SUPABASE_URL: https://${{ secrets.SUPABASE_PROJECT_REF }}.supabase.co
           VITE_SUPABASE_ANON_KEY: ${{ secrets.VITE_SUPABASE_ANON_KEY }}
 
-      # GitHub Pages deve servire index.html anche per le
-      # rotte dinamiche di React, ad esempio /r/CERVO-4821
       - name: Configure SPA fallback
         run: cp dist/index.html dist/404.html
 
@@ -47,7 +45,7 @@ jobs:
         uses: actions/configure-pages@v6
 
       - name: Upload Pages artifact
-        uses: actions/upload-pages-artifact@v4
+        uses: actions/upload-pages-artifact@v5
         with:
           path: ./dist
 
