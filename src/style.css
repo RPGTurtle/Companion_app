@@ -737,6 +737,57 @@ button:focus-visible, input:focus-visible {
   border-color: var(--brick-bright);
 }
 
+/* --- Stati/condizioni --- */
+.status-badge {
+  display: inline-block;
+  margin-left: 6px;
+  padding: 1px 7px;
+  border-radius: 999px;
+  background: rgba(139, 58, 58, 0.35);
+  border: 1px solid rgba(232, 220, 196, 0.3);
+  color: var(--ivory);
+  font-size: 0.65rem;
+  font-weight: 700;
+  vertical-align: middle;
+  white-space: nowrap;
+}
+
+.gm-stato-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  background: rgba(15, 29, 21, 0.4);
+  border-radius: 10px;
+  padding: 6px 10px;
+}
+
+.gm-stato-bersaglio {
+  flex: 1;
+  font-size: 0.8rem;
+  color: var(--ivory-dim);
+}
+
+.gm-stato-elimina {
+  position: static;
+}
+
+.grid-pedina-stato-badge {
+  position: absolute;
+  bottom: -6px;
+  right: -6px;
+  width: 15px;
+  height: 15px;
+  border-radius: 50%;
+  background: var(--brick);
+  color: var(--ivory);
+  font-size: 0.6rem;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid rgba(232, 220, 196, 0.5);
+}
+
 .clocks-display {
   display: flex;
   flex-wrap: wrap;
