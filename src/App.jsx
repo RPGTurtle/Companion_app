@@ -1170,7 +1170,7 @@ function Room({ roomCode }) {
                           ? `👤 ${s.target_key}`
                           : bersagliStato.find((b) => b.valore === `token::${s.target_key}`)?.etichetta || s.target_key}
                       </span>
-                      <button className="grid-pedina-elimina gm-stato-elimina" onClick={() => rimuoviStato(s.id)} title="Rimuovi stato">✕</button>
+                      <button className="gm-stato-elimina" onClick={() => rimuoviStato(s.id)} title="Rimuovi stato">✕</button>
                     </div>
                   ))}
                 </div>
