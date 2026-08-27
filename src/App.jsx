@@ -221,6 +221,9 @@ function Room({ roomCode }) {
   const [nuovoTipoPedina, setNuovoTipoPedina] = useState('giocatore')
   const [modalitaGriglia, setModalitaGriglia] = useState('pedine') // 'pedine' | 'disegno'
   const [coloreDisegno, setColoreDisegno] = useState('#C9A227')
+  const [stati, setStati] = useState([])
+  const [statoTarget, setStatoTarget] = useState('')
+  const [statoTesto, setStatoTesto] = useState('')
   const [easterEgg, setEasterEgg] = useState(false)
   const [tiroNascosto, setTiroNascosto] = useState(false)
   const [tiriNascosti, setTiriNascosti] = useState([])
@@ -300,6 +303,15 @@ function Room({ roomCode }) {
     }
     caricaPedine()
 
+    async function caricaStati() {
+      const { data } = await supabase
+        .from('room_statuses')
+        .select('*')
+        .eq('room_code', roomCode)
+      if (mounted && data) setStati(data)
+    }
+    caricaStati()
+
     const channel = supabase
       .channel(`room:${roomCode}`)
       .on(
@@ -373,6 +385,20 @@ function Room({ roomCode }) {
         { event: 'DELETE', schema: 'public', table: 'room_tokens', filter: `room_code=eq.${roomCode}` },
         (payload) => {
           setPedine((prev) => prev.filter((p) => p.id !== payload.old.id))
+        }
+      )
+      .on(
+        'postgres_changes',
+        { event: 'INSERT', schema: 'public', table: 'room_statuses', filter: `room_code=eq.${roomCode}` },
+        (payload) => {
+          setStati((prev) => [...prev, payload.new])
+        }
+      )
+      .on(
+        'postgres_changes',
+        { event: 'DELETE', schema: 'public', table: 'room_statuses', filter: `room_code=eq.${roomCode}` },
+        (payload) => {
+          setStati((prev) => prev.filter((s) => s.id !== payload.old.id))
         }
       )
       .subscribe()
@@ -451,6 +477,21 @@ function Room({ roomCode }) {
 
   // Include anche te stesso, utile per piazzare la propria pedina sulla griglia
   const tuttiIGiocatori = useMemo(() => [nickname, ...giocatoriVisti], [nickname, giocatoriVisti])
+
+  // Elenco combinato di chi può ricevere uno stato: giocatori (per nickname) + pedine nemico/altro (per id)
+  const bersagliStato = useMemo(() => {
+    const daGiocatori = tuttiIGiocatori.map((nome) => ({
+      valore: `player::${nome}`,
+      etichetta: `👤 ${nome}`,
+    }))
+    const daPedine = pedine
+      .filter((p) => p.tipo !== 'giocatore')
+      .map((p) => ({
+        valore: `token::${p.id}`,
+        etichetta: `${ICONE_TIPO_PEDINA[p.tipo] || '❓'} ${p.etichetta}`,
+      }))
+    return [...daGiocatori, ...daPedine]
+  }, [tuttiIGiocatori, pedine])
 
   function aggiungiDado(sides) {
     setEspressione((prev) => {
@@ -705,6 +746,30 @@ function Room({ roomCode }) {
     await salvaDisegno([])
   }
 
+  // --- Gestione stati/condizioni (solo GM) ---
+  async function assegnaStato() {
+    const testo = statoTesto.trim().slice(0, 30)
+    if (!testo || !statoTarget) return
+    const [targetType, targetKey] = statoTarget.split('::')
+    const { error } = await supabase.from('room_statuses').insert({
+      room_code: roomCode,
+      target_type: targetType,
+      target_key: targetKey,
+      etichetta: testo,
+    })
+    if (error) setErroreGM(`Errore nell'assegnare lo stato: ${error.message}`)
+    setStatoTesto('')
+  }
+
+  async function rimuoviStato(id) {
+    setStati((prev) => prev.filter((s) => s.id !== id))
+    await supabase.from('room_statuses').delete().eq('id', id)
+  }
+
+  function statiDi(targetType, targetKey) {
+    return stati.filter((s) => s.target_type === targetType && s.target_key === targetKey)
+  }
+
   if (!nickname) {
     return <NicknameGate roomCode={roomCode} onJoin={setNickname} />
   }
@@ -774,6 +839,9 @@ function Room({ roomCode }) {
                     <span className="chat-bubble-meta">
                       {isDM && '🔒 '}
                       <strong style={{ color: colorePerNickname(m.sender) }}>{m.sender}</strong>
+                      {statiDi('player', m.sender).map((s) => (
+                        <span key={s.id} className="status-badge" title={s.etichetta}>{s.etichetta}</span>
+                      ))}
                       {isDM && (mioMessaggio ? ` → ${m.recipient}` : ' → te')}
                     </span>
                     {m.image_url && (
@@ -1066,6 +1134,49 @@ function Room({ roomCode }) {
                 </>
               )}
             </div>
+
+            <div className="gm-section">
+              <label>Stati / condizioni</label>
+              <div className="gm-inline-form">
+                <select
+                  className="gm-select"
+                  value={statoTarget}
+                  onChange={(e) => setStatoTarget(e.target.value)}
+                >
+                  <option value="">Assegna a…</option>
+                  {bersagliStato.map((b) => (
+                    <option key={b.valore} value={b.valore}>{b.etichetta}</option>
+                  ))}
+                </select>
+                <input
+                  type="text"
+                  className="expression-input"
+                  placeholder="es. Avvelenato"
+                  value={statoTesto}
+                  onChange={(e) => setStatoTesto(e.target.value)}
+                  onKeyDown={(e) => { if (e.key === 'Enter') assegnaStato() }}
+                  maxLength={30}
+                />
+                <button className="btn-secondary" onClick={assegnaStato}>Assegna</button>
+              </div>
+
+              {stati.length > 0 && (
+                <div className="gm-clocks-list">
+                  {stati.map((s) => (
+                    <div key={s.id} className="gm-stato-row">
+                      <span className="gm-stato-badge">{s.etichetta}</span>
+                      <span className="gm-stato-bersaglio">
+                        {s.target_type === 'player'
+                          ? `👤 ${s.target_key}`
+                          : bersagliStato.find((b) => b.valore === `token::${s.target_key}`)?.etichetta || s.target_key}
+                      </span>
+                      <button className="grid-pedina-elimina gm-stato-elimina" onClick={() => rimuoviStato(s.id)} title="Rimuovi stato">✕</button>
+                    </div>
+                  ))}
+                </div>
+              )}
+              <p className="gm-hint">Gli stati compaiono accanto al nome nella cronologia lanci, nei messaggi in chat e come badge sulle pedine.</p>
+            </div>
           </div>
         )}
 
@@ -1080,6 +1191,7 @@ function Room({ roomCode }) {
             modalitaDisegno={isGM && modalitaGriglia === 'disegno'}
             coloreDisegno={coloreDisegno}
             onDisegnaFine={salvaDisegno}
+            stati={stati}
           />
         )}
 
@@ -1182,7 +1294,12 @@ function Room({ roomCode }) {
                 ...(colorePannelli ? { backgroundColor: colorePannelli } : {}),
               }}
             >
-              <span className="storico-nome" style={{ color: colorePerNickname(t.nickname) }}>{t.nickname}</span>
+              <span className="storico-nome" style={{ color: colorePerNickname(t.nickname) }}>
+                {t.nickname}
+                {statiDi('player', t.nickname).map((s) => (
+                  <span key={s.id} className="status-badge" title={s.etichetta}>{s.etichetta}</span>
+                ))}
+              </span>
               <span className="storico-dadi">
                 {t.notation || `${t.dice_count}d${t.dice_sides}`}: {formattaDettaglioTiro(t)}
               </span>
@@ -1432,7 +1549,7 @@ const ICONE_TIPO_PEDINA = {
   altro: '❓',
 }
 
-function GrigliaBattaglia({ griglia, pedine, isGM, onSposta, onElimina, colorePannelli, modalitaDisegno, coloreDisegno, onDisegnaFine }) {
+function GrigliaBattaglia({ griglia, pedine, isGM, onSposta, onElimina, colorePannelli, modalitaDisegno, coloreDisegno, onDisegnaFine, stati }) {
   const containerRef = useRef(null)
   const [trascinando, setTrascinando] = useState(null) // { id, left, top }
   const [trattoInCorso, setTrattoInCorso] = useState(null) // array di punti {x,y} mentre si disegna
@@ -1553,15 +1670,22 @@ function GrigliaBattaglia({ griglia, pedine, isGM, onSposta, onElimina, colorePa
           const top = inTrascinamento ? trascinando.top : p.riga * CELLA_PX
           const colore = p.tipo === 'giocatore' ? colorePerNickname(p.etichetta) : (COLORI_TIPO_PEDINA[p.tipo] || COLORI_TIPO_PEDINA.altro)
           const testoBreve = p.tipo === 'giocatore' ? p.etichetta.slice(0, 3).toUpperCase() : p.etichetta
+          const statiPedina = (stati || []).filter((s) =>
+            p.tipo === 'giocatore' ? (s.target_type === 'player' && s.target_key === p.etichetta) : (s.target_type === 'token' && s.target_key === p.id)
+          )
+          const titoloPedina = statiPedina.length ? `${p.etichetta} — ${statiPedina.map((s) => s.etichetta).join(', ')}` : p.etichetta
           return (
             <div
               key={p.id}
               className={`grid-pedina ${inTrascinamento ? 'grid-pedina-trascinando' : ''} ${isGM && !modalitaDisegno ? 'grid-pedina-trascinabile' : ''}`}
               style={{ left, top, background: colore }}
               onPointerDown={(e) => iniziaTrascinamento(e, p)}
-              title={p.etichetta}
+              title={titoloPedina}
             >
               <span className="grid-pedina-etichetta">{testoBreve}</span>
+              {statiPedina.length > 0 && (
+                <span className="grid-pedina-stato-badge">{statiPedina.length}</span>
+              )}
               {isGM && !modalitaDisegno && (
                 <button
                   className="grid-pedina-elimina"
