@@ -234,6 +234,7 @@ function Room({ roomCode }) {
   const [destinatario, setDestinatario] = useState('') // '' = chat pubblica, altrimenti nickname
   const chatEndRef = useRef(null)
   const listEndRef = useRef(null)
+  const listContainerRef = useRef(null)
 
   useEffect(() => {
     if (!nickname) return
@@ -410,7 +411,11 @@ function Room({ roomCode }) {
   }, [nickname, roomCode])
 
   useEffect(() => {
-    listEndRef.current?.scrollIntoView({ behavior: 'smooth' })
+    // Scorre solo l'elenco interno della cronologia, senza spostare la pagina
+    // (prima "strappava" la visuale da qualunque punto ci si trovasse, es. il video)
+    if (listContainerRef.current) {
+      listContainerRef.current.scrollTop = listContainerRef.current.scrollHeight
+    }
   }, [tiri])
 
   useEffect(() => {
@@ -881,7 +886,7 @@ function Room({ roomCode }) {
           </div>
         )}
 
-        {videoAperto && <VideoChiamata roomCode={roomCode} nickname={nickname} />}
+        {videoAperto && <VideoChiamata roomCode={roomCode} nickname={nickname} isGM={isGM} />}
 
         {impostazioni?.media_url && (
           <MediaPlayer tipo={impostazioni.media_type} url={impostazioni.media_url} />
@@ -1284,7 +1289,7 @@ function Room({ roomCode }) {
       <div className="storico">
         <h3>Cronologia tiri</h3>
         {tiri.length === 0 && <p className="storico-empty">Nessun tiro ancora. Rompete il ghiaccio!</p>}
-        <ul className="storico-list">
+        <ul className="storico-list" ref={listContainerRef}>
           {tiri.map((t) => (
             <li
               key={t.id ?? `${t.created_at}-${t.nickname}`}
@@ -1463,7 +1468,7 @@ function caricaScriptJaas(appId) {
   })
 }
 
-function VideoChiamata({ roomCode, nickname }) {
+function VideoChiamata({ roomCode, nickname, isGM }) {
   const containerRef = useRef(null)
   const apiRef = useRef(null)
   const [stato, setStato] = useState('caricamento') // caricamento | pronto | errore
@@ -1476,7 +1481,7 @@ function VideoChiamata({ roomCode, nickname }) {
     async function avvia() {
       try {
         const { data, error } = await supabase.functions.invoke('jaas-token', {
-          body: { room: nomeStanzaJaas, nickname },
+          body: { room: nomeStanzaJaas, nickname, isGM },
         })
         if (error) throw error
         if (!data?.token || !data?.appId) throw new Error('Token non ricevuto')
