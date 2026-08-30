@@ -21,7 +21,7 @@ Deno.serve(async (req) => {
   }
 
   try {
-    const { room, nickname } = await req.json();
+    const { room, nickname, isGM } = await req.json();
 
     if (!room || typeof room !== "string" || !nickname || typeof nickname !== "string") {
       return new Response(JSON.stringify({ error: "room e nickname sono obbligatori" }), {
@@ -47,7 +47,7 @@ Deno.serve(async (req) => {
       context: {
         user: {
           name: nicknamePulito,
-          moderator: true,
+          moderator: isGM === true,
         },
         features: {
           livestreaming: false,
