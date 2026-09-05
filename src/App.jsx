@@ -1387,9 +1387,25 @@ function MediaPlayer({ tipo, url }) {
   }
 
   if (tipo === 'youtube') {
-    const match = url.match(/(?:youtube\.com\/watch\?v=|youtu\.be\/|youtube\.com\/embed\/)([a-zA-Z0-9_-]{6,})/)
-    const id = match ? match[1] : null
-    if (!id) return null
+    const matchVideo = url.match(/(?:youtube\.com\/watch\?v=|youtu\.be\/|youtube\.com\/embed\/)([a-zA-Z0-9_-]{6,})/)
+    const matchLista = url.match(/[?&]list=([a-zA-Z0-9_-]+)/)
+    const videoId = matchVideo ? matchVideo[1] : null
+    const listaId = matchLista ? matchLista[1] : null
+
+    if (!videoId && !listaId) return null
+
+    let src
+    if (listaId && !videoId) {
+      // Link a una playlist pura (senza un video specifico di partenza)
+      src = `https://www.youtube.com/embed/videoseries?list=${listaId}&enablejsapi=1&autoplay=1&loop=1`
+    } else if (listaId && videoId) {
+      // Link a un video che fa parte di una playlist: riproduce l'intera playlist partendo da lì
+      src = `https://www.youtube.com/embed/${videoId}?list=${listaId}&enablejsapi=1&autoplay=1&loop=1`
+    } else {
+      // Video singolo: il trucco playlist=stesso-id serve a farlo ripetere in loop
+      src = `https://www.youtube.com/embed/${videoId}?enablejsapi=1&autoplay=1&loop=1&playlist=${videoId}`
+    }
+
     return (
       <div className="media-player">
         <p className="media-player-label">🎵 Musica impostata dal GM</p>
@@ -1397,7 +1413,7 @@ function MediaPlayer({ tipo, url }) {
           ref={iframeRef}
           className="youtube-frame"
           width="100%"
-          src={`https://www.youtube.com/embed/${id}?enablejsapi=1&autoplay=1&loop=1&playlist=${id}`}
+          src={src}
           title="Musica della stanza"
           frameBorder="0"
           allow="autoplay; encrypted-media"
