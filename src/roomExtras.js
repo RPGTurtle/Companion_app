@@ -32,10 +32,8 @@ export function classificaMedia(url) {
 
   if (/\.mp3(\?.*)?$/i.test(pulito)) return { tipo: 'mp3', url: pulito }
 
-  const matchYoutube = pulito.match(
-    /(?:youtube\.com\/watch\?v=|youtu\.be\/|youtube\.com\/embed\/)([a-zA-Z0-9_-]{6,})/
-  )
-  if (matchYoutube) return { tipo: 'youtube', id: matchYoutube[1] }
+  const matchYoutube = pulito.match(/(?:youtube\.com|youtu\.be)/)
+  if (matchYoutube) return { tipo: 'youtube' }
 
   const matchSpotify = pulito.match(
     /open\.spotify\.com\/(track|album|playlist|episode|show)\/([a-zA-Z0-9]+)/
